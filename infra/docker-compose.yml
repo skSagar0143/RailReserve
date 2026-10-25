@@ -8,6 +8,11 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in root .env}
     ports: ["127.0.0.1:3306:3306"]
     volumes: [mysql_data:/var/lib/mysql, ./mysql/init:/docker-entrypoint-initdb.d:ro]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped
@@ -30,6 +35,75 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     ports: ["127.0.0.1:29092:29092"]
+  auth-service:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile
+      args:
+        SERVICE_MODULE: auth-service
+    environment:
+      SERVER_PORT: 8081
+      DB_URL: jdbc:mysql://mysql:3306/railreserve_auth?serverTimezone=UTC
+      DB_USERNAME: ${MYSQL_USER:-railreserve_app}
+      DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in root .env}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports: ["127.0.0.1:8081:8081"]
+  train-service:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile
+      args:
+        SERVICE_MODULE: train-service
+    environment:
+      SERVER_PORT: 8082
+      DB_URL: jdbc:mysql://mysql:3306/railreserve_train?serverTimezone=UTC
+      DB_USERNAME: ${MYSQL_USER:-railreserve_app}
+      DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in root .env}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in root .env}
+    depends_on:
+      mysql:
+        condition: service_started
+      redis:
+        condition: service_started
+    ports: ["127.0.0.1:8082:8082"]
+  booking-service:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile
+      args:
+        SERVICE_MODULE: booking-service
+    environment:
+      SERVER_PORT: 8083
+      DB_URL: jdbc:mysql://mysql:3306/railreserve_booking?serverTimezone=UTC
+      DB_USERNAME: ${MYSQL_USER:-railreserve_app}
+      DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in root .env}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in root .env}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      mysql:
+        condition: service_started
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_started
+    ports: ["127.0.0.1:8083:8083"]
+  notification-service:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile
+      args:
+        SERVICE_MODULE: notification-service
+    environment:
+      SERVER_PORT: 8084
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_started
+    ports: ["127.0.0.1:8084:8084"]
 volumes:
   mysql_data:
   redis_data:
