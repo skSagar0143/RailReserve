@@ -6,7 +6,7 @@
 - RS256 JWT access tokens with issuer, audience, issue time, expiry, subject, role and token ID claims.
 - RSA keys loaded from mounted PEM files; startup rejects RSA signing keys smaller than 3072 bits and rejects mismatched public/private keys.
 - JWT signature, issuer, audience and standard timestamp validation in the auth service and resource-server configuration in the other backend services.
-- Opaque refresh tokens stored as SHA-256 hashes, rotation, expiry, logout revocation and a database lock while rotating a token.
+- Opaque refresh tokens stored as SHA-256 hashes, rotation, expiry, logout revocation, a database lock while rotating, and family-wide revocation when a previously rotated token is reused.
 - Stateless API security, health-only public actuator access, CORS allow-list configuration and read-only secret mounts in local Compose.
 - Redis-backed fixed-window limits on login, registration, refresh and logout endpoints; authentication fails closed with 503 if the rate limiter is unavailable.
 - Booking event outbox publishing, consumer event-ID deduplication, durable notification inbox/job records and a configured dead-letter topic.
@@ -17,7 +17,7 @@
 This project is not yet production-ready. Finish and verify all of the following before launch:
 
 - Add key-ID-aware rotation/JWKS publication; define key rotation, overlap and emergency revocation procedures.
-- Add account email verification, password recovery/change, session/device management, refresh-token reuse detection, account lockout and distributed rate limiting.
+- Add account email verification, password recovery/change, session/device management, account lockout and distributed abuse controls beyond the current IP-based rate limits.
 - Add explicit role and resource-ownership checks to every business endpoint; never trust a customer ID supplied by the client.
 - Set environment-specific exact CORS origins; terminate TLS at a hardened gateway; configure request size/time limits, trusted-proxy rules, HSTS and other security headers.
 - Move production keys and credentials into a secret manager/KMS; use separate least-privilege database users and authenticated/encrypted Kafka and Redis connections.
