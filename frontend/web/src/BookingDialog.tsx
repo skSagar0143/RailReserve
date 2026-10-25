@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 type Seat = { inventoryId: number; coachCode: string; seatNumber: string; fareAmount: number };
 type Booking = { id: string; bookingReference: string; status: string; trainId: number; journeyDate: string; seatIds: number[]; totalAmount: number; holdExpiresAt: string | null };
+type Payment = { bookingStatus: string; paymentStatus: string; checkoutUrl?: string | null; paymentLinkId?: string | null };
 type Props = { trainId: number; trainName: string; journeyDate: string; accessToken: string; apiFetch: (url: string, init?: RequestInit) => Promise<Response>; onClose: () => void };
 
 export default function BookingDialog({ trainId, trainName, journeyDate, accessToken, apiFetch, onClose }: Props) {
@@ -10,6 +11,7 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
   const [booking, setBooking] = useState<Booking | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [payment, setPayment] = useState<Payment | null>(null);
   const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
   useEffect(() => {
@@ -49,6 +51,32 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
     }
   }
 
+  async function startPayment() {
+    if (!booking) return;
+    setError(''); setLoading(true);
+    try {
+      const response = await apiFetch(base + '/api/v1/payments/bookings/' + booking.id + '/checkout', { method: 'POST', headers: { Authorization: 'Bearer ' + accessToken } });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.message || body.error || 'Could not start payment.');
+      setPayment(body as Payment);
+      window.open(String(body.checkoutUrl), '_blank', 'noopener,noreferrer');
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not start payment.'); }
+    finally { setLoading(false); }
+  }
+
+  async function refreshPayment() {
+    if (!booking) return;
+    setLoading(true); setError('');
+    try {
+      const response = await apiFetch(base + '/api/v1/payments/bookings/' + booking.id, { headers: { Authorization: 'Bearer ' + accessToken } });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.message || 'Could not refresh payment status.');
+      setPayment(body as Payment);
+      setBooking(current => current ? { ...current, status: body.bookingStatus } : current);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not refresh payment status.'); }
+    finally { setLoading(false); }
+  }
+
   async function cancelHold() {
     if (!booking) return;
     setLoading(true);
@@ -77,8 +105,8 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
       <p>{trainName} · {journeyDate}</p>
       {booking ? <>
         <div className="bookingreceipt"><span>Booking reference</span><strong>{booking.bookingReference}</strong><span>Status</span><strong>{booking.status}</strong><span>Seat inventory IDs</span><strong>{booking.seatIds.join(', ')}</strong><span>Server-calculated total</span><strong>₹{Number(booking.totalAmount).toFixed(2)}</strong>{booking.holdExpiresAt && <><span>Hold expires</span><strong>{new Date(booking.holdExpiresAt).toLocaleString()}</strong></>}</div>
-        <p className="autherror">Payment is not connected. This booking remains pending payment and the seat hold expires automatically.</p>
-        {booking.status === 'PENDING_PAYMENT' && <button className="searchbtn" disabled={loading} onClick={cancelHold}>{loading ? 'Cancelling…' : 'Cancel seat hold'}</button>}
+        <p>{payment ? `Payment status: ${payment.paymentStatus}. Booking status: ${payment.bookingStatus}.` : 'Use the secure hosted checkout. Booking confirmation is applied only after the signed provider webhook is verified.'}</p>
+        {booking.status === 'PENDING_PAYMENT' && <><button className="searchbtn" disabled={loading} onClick={startPayment}>{loading ? 'Opening checkout…' : 'Pay securely with Razorpay'}</button><button className="custom-btn" disabled={loading} onClick={refreshPayment}>Refresh payment status</button><button className="custom-btn" disabled={loading} onClick={cancelHold}>Cancel seat hold</button></>}
       </> : <>
         {seats.length === 0 && !error && <p>No available seats are configured for this train and date.</p>}
         <div className="seatgrid">{seats.map(seat => <label key={seat.inventoryId} className={'seatoption ' + (selected.includes(seat.inventoryId) ? 'selected' : '')}>
