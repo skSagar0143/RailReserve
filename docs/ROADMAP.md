@@ -19,7 +19,9 @@
 
 ## Still required before production
 
-- [ ] Confirm the latest CI run including JaCoCo aggregation is green; run migrations and the entire Compose stack in an integration environment.
+- [x] CI backend verification, web build, mobile type-check, infrastructure validation and JaCoCo aggregation passed on commit `551fdd05e5f6cbd16d119218aeab6f813ed5edda`; CodeQL also passed on that commit.
+- [ ] Re-run CI after the latest added boundary tests; run migrations and the entire Compose stack in an integration environment.
+- [ ] Raise measured coverage substantially from the last verified aggregate baseline: instructions 13.65%, branches 21.74%, lines 18.12%, methods 15.50%, classes 22.58%.
 - [ ] Expand coverage to auth success/refresh/reuse, booking transaction and concurrency edge cases, Kafka outbox/inbox retry behavior, and API integration tests; set coverage thresholds after measuring a trustworthy baseline.
 - [ ] Add payment provider integration, verified fare/route data, payment webhook signature validation, refund/reconciliation and expiry cleanup operations.
 - [ ] Add key-ID-aware RSA rotation/JWKS, account verification/recovery, account/device management and stronger abuse controls.
