@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
@@ -39,10 +40,16 @@ public class BookingApiService {
 
     @Transactional
     public BookingDtos.BookingResponse create(UUID customerId, String idempotencyKey, BookingDtos.CreateBookingRequest request) {
+        if (customerId == null) throw new IllegalArgumentException("Customer identity is required.");
+        if (request == null || request.trainId() == null || request.trainId() <= 0 || request.journeyDate() == null
+                || request.seatIds() == null || request.seatIds().isEmpty() || request.seatIds().size() > 6
+                || request.seatIds().stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new IllegalArgumentException("A valid train, journey date, and between 1 and 6 positive seat IDs are required.");
+        }
         if (idempotencyKey == null || idempotencyKey.trim().length() < 16 || idempotencyKey.length() > 128) {
             throw new IllegalArgumentException("Idempotency-Key must contain 16 to 128 characters.");
         }
-        if (request.journeyDate().isBefore(LocalDate.now())) {
+        if (request.journeyDate().isBefore(LocalDate.now(ZoneId.of("Asia/Kolkata")))) {
             throw new IllegalArgumentException("Journey date cannot be in the past.");
         }
         List<Long> seatIds = new ArrayList<>(new TreeSet<>(request.seatIds()));
