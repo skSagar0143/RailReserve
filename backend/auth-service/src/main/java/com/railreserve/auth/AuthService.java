@@ -52,7 +52,7 @@ public class AuthService {
             throw new AuthConflictException("An account with this email already exists.");
         }
         AuthUser user = users.save(new AuthUser(email, passwordEncoder.encode(request.password()), request.displayName().trim()));
-        return issueTokens(user);
+        return issueTokens(user, UUID.randomUUID());
     }
 
     @Transactional
@@ -62,7 +62,7 @@ public class AuthService {
         if (!user.isActive() || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BadCredentialsException("Invalid email or password.");
         }
-        return issueTokens(user);
+        return issueTokens(user, stored.getFamilyId());
     }
 
     @Transactional
@@ -71,8 +71,12 @@ public class AuthService {
         RefreshToken stored = refreshTokens.findByTokenHashForUpdate(hash)
             .orElseThrow(() -> new BadCredentialsException("Invalid refresh token."));
         Instant now = Instant.now();
-        if (!stored.isUsable(now)) {
-            throw new BadCredentialsException("Refresh token has expired or was revoked.");
+        if (stored.getRevokedAt() != null) {
+            refreshTokens.revokeFamily(stored.getFamilyId(), now);
+            throw new BadCredentialsException("Refresh token reuse detected; sign in again.");
+        }
+        if (!stored.getExpiresAt().isAfter(now)) {
+            throw new BadCredentialsException("Refresh token has expired.");
         }
         stored.revoke(now);
         AuthUser user = users.findById(stored.getUserId())
@@ -83,7 +87,7 @@ public class AuthService {
 
     @Transactional
     public void logout(String rawToken) {
-        refreshTokens.findByTokenHashForUpdate(sha256(rawToken)).ifPresent(token -> token.revoke(Instant.now()));
+        refreshTokens.findByTokenHashForUpdate(sha256(rawToken)).ifPresent(token -> refreshTokens.revokeFamily(token.getFamilyId(), Instant.now()));
     }
 
     @Transactional(readOnly = true)
@@ -93,7 +97,7 @@ public class AuthService {
         return toUserResponse(user);
     }
 
-    private AuthDtos.TokenResponse issueTokens(AuthUser user) {
+    private AuthDtos.TokenResponse issueTokens(AuthUser user, UUID familyId) {
         Instant now = Instant.now();
         Instant expires = now.plusSeconds(accessTtl);
         JwtClaimsSet claims = JwtClaimsSet.builder()
@@ -111,7 +115,7 @@ public class AuthService {
         byte[] random = new byte[48];
         secureRandom.nextBytes(random);
         String refreshToken = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
-        refreshTokens.save(new RefreshToken(user.getId(), sha256(refreshToken), now.plusSeconds(refreshTtl)));
+        refreshTokens.save(new RefreshToken(user.getId(), familyId, sha256(refreshToken), now.plusSeconds(refreshTtl)));
         return new AuthDtos.TokenResponse("Bearer", accessToken, accessTtl, refreshToken, user.getRole());
     }
 
