@@ -33,7 +33,9 @@ public class AuthRateLimitInterceptor implements HandlerInterceptor {
         try {
             Long count = redis.opsForValue().increment(key);
             if (count == null) throw new IllegalStateException("Rate limit counter returned no value.");
-            if (count == 1L) redis.expire(key, Duration.ofSeconds(windowSeconds));
+            if (count == 1L && !Boolean.TRUE.equals(redis.expire(key, Duration.ofSeconds(windowSeconds)))) {
+                throw new IllegalStateException("Rate limit window could not be set.");
+            }
             if (count > limit) {
                 response.setStatus(429);
                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);
