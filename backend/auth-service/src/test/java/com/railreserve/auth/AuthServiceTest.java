@@ -64,6 +64,22 @@ class AuthServiceTest {
     }
 
     @Test
+    void loginRejectsInactiveAccountEvenWithCorrectPassword() {
+        AuthUser inactive = new AuthUser("inactive@example.com", new BCryptPasswordEncoder().encode("LongSecurePassword123!"), "Inactive");
+        try {
+            var field = AuthUser.class.getDeclaredField("active");
+            field.setAccessible(true);
+            field.set(inactive, false);
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+        when(users.findByEmailIgnoreCase("inactive@example.com")).thenReturn(Optional.of(inactive));
+        assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () ->
+            service.login(new AuthDtos.LoginRequest("inactive@example.com", "LongSecurePassword123!")));
+        verify(refreshTokens, never()).save(any());
+    }
+
+    @Test
     void loginRejectsUnknownEmail() {
         when(users.findByEmailIgnoreCase("missing@example.com")).thenReturn(Optional.empty());
         assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () ->
