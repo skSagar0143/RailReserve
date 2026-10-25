@@ -8,6 +8,8 @@
 - JWT signature, issuer, audience and standard timestamp validation in the auth service and resource-server configuration in the other backend services.
 - Opaque refresh tokens stored as SHA-256 hashes, rotation, expiry, logout revocation and a database lock while rotating a token.
 - Stateless API security, health-only public actuator access, CORS allow-list configuration and read-only secret mounts in local Compose.
+- Redis-backed fixed-window limits on login, registration, refresh and logout endpoints; authentication fails closed with 503 if the rate limiter is unavailable.
+- Booking event outbox publishing, consumer event-ID deduplication, durable notification inbox/job records and a configured dead-letter topic.
 - Input DTO validation and generic unauthorized responses.
 
 ## Required before production traffic
