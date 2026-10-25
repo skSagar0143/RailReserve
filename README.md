@@ -23,7 +23,7 @@ RailReserve is an actively developed railway reservation platform using Java 21,
 
 ## Local setup
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Copy `.env.example` to `.env`, replace sample passwords and generate local RSA keys with `.infra\scripts\generate-rsa-keys.ps1` from PowerShell. Never use these local keys in production.
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Copy `.env.example` to `.env`, replace sample passwords and generate local RSA keys with `infra/scripts/generate-rsa-keys.ps1` from PowerShell. Never use these local keys in production.
 
 ## Production status
 
