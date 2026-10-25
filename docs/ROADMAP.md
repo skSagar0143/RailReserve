@@ -20,10 +20,11 @@
 ## Still required before production
 
 - [x] CI backend verification, web build, mobile type-check, infrastructure validation and JaCoCo aggregation passed on commit `551fdd05e5f6cbd16d119218aeab6f813ed5edda`; CodeQL also passed on that commit.
-- [ ] Re-run CI after the latest added boundary tests; run migrations and the entire Compose stack in an integration environment.
+- [ ] Re-run CI after payment implementation and added boundary tests; run migrations and the entire Compose stack in an integration environment.
 - [ ] Raise measured coverage substantially from the last verified aggregate baseline: instructions 13.65%, branches 21.74%, lines 18.12%, methods 15.50%, classes 22.58%.
 - [ ] Expand coverage to auth success/refresh/reuse, booking transaction and concurrency edge cases, Kafka outbox/inbox retry behavior, and API integration tests; set coverage thresholds after measuring a trustworthy baseline.
-- [ ] Add payment provider integration, verified fare/route data, payment webhook signature validation, refund/reconciliation and expiry cleanup operations.
+- [x] Add Razorpay hosted payment-link checkout, owner-checked payment status, signed webhook verification, amount/currency matching, idempotent booking confirmation, and web/mobile checkout actions.
+- [ ] Complete automated refunds and payment reconciliation for paid-after-expiry/invalid amount cases; configure real provider credentials and validate sandbox webhook delivery end-to-end.
 - [ ] Add key-ID-aware RSA rotation/JWKS, account verification/recovery, account/device management and stronger abuse controls.
 - [ ] Complete role/ownership tests, integration tests, Testcontainers, API contract tests and concurrent oversell/idempotency tests.
 - [x] ADMIN-only seat inventory and server-configured fare setup.
@@ -35,4 +36,6 @@
 - [ ] Add structured audit logs, metrics/tracing/alerts, dependency/SBOM/secret/container scans, load tests, backup restore drills, disaster recovery and rollback/release rehearsal.
 - [ ] Perform independent threat modeling and security review; confirm applicable railway/payment/privacy requirements.
 
-This is still an implementation in progress, not a production release. Do not deploy to real customers or process real payments until the remaining gates are implemented, tested, reviewed and validated.
+Payment setup: set `PAYMENT_ENABLED=true`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` in the deployment environment. Configure Razorpay to send the `payment_link.paid` event to `/api/v1/payments/webhook`. Start with test-mode credentials. The backend never trusts a browser redirect as proof of payment; only a signature-verified webhook with matching amount/currency confirms a booking. Payments received after the seat hold expires or with mismatched amount/currency are held for manual reconciliation and are not automatically refunded yet.
+
+This is still an implementation in progress, not a production release. Do not deploy to real customers or process live payments until CI, sandbox webhook delivery, refund/reconciliation, integration tests, security review, and operational recovery have been completed.
