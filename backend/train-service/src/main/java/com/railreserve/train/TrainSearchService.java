@@ -1,18 +1,32 @@
 package com.railreserve.train;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.List;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.JdbcTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class TrainSearchService {
+    private static final Logger log = LoggerFactory.getLogger(TrainSearchService.class);
+    private static final String CACHE_VERSION_KEY = "railreserve:train:cache-version";
+    private static final Duration CACHE_TTL = Duration.ofSeconds(30);
     private final JdbcTemplate jdbc;
+    private final StringRedisTemplate redis;
+    private final ObjectMapper objectMapper;
 
-    public TrainSearchService(JdbcTemplate jdbc) {
+    public TrainSearchService(JdbcTemplate jdbc, StringRedisTemplate redis, ObjectMapper objectMapper) {
         this.jdbc = jdbc;
+        this.redis = redis;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -20,7 +34,41 @@ public class TrainSearchService {
         String from = normalizeCode(fromCode);
         String to = normalizeCode(toCode);
         if (from.equals(to)) throw new IllegalArgumentException("Departure and destination stations must be different.");
-        if (date.isBefore(LocalDate.now())) throw new IllegalArgumentException("Journey date cannot be in the past.");
+        if (date.isBefore(LocalDate.now(ZoneId.of("Asia/Kolkata")))) {
+            throw new IllegalArgumentException("Journey date cannot be in the past.");
+        }
+
+        String version;
+        try {
+            version = redis.opsForValue().get(CACHE_VERSION_KEY);
+            if (version == null) {
+                redis.opsForValue().setIfAbsent(CACHE_VERSION_KEY, "0");
+                version = redis.opsForValue().get(CACHE_VERSION_KEY);
+            }
+            if (version == null) version = "0";
+        } catch (Exception ex) {
+            log.debug("Train search cache version unavailable; using database", ex);
+            return queryDatabase(from, to, date);
+        }
+
+        String cacheKey = "railreserve:train-search:v1:" + version + ":" + from + ":" + to + ":" + date;
+        try {
+            String cached = redis.opsForValue().get(cacheKey);
+            if (cached != null) return Arrays.asList(objectMapper.readValue(cached, TrainSearchDtos.TrainSearchResult[].class));
+        } catch (Exception ex) {
+            log.debug("Train search cache read failed; falling back to database");
+        }
+
+        List<TrainSearchDtos.TrainSearchResult> results = queryDatabase(from, to, date);
+        try {
+            redis.opsForValue().set(cacheKey, objectMapper.writeValueAsString(results), CACHE_TTL);
+        } catch (Exception ex) {
+            log.debug("Train search cache write failed; serving database results");
+        }
+        return results;
+    }
+
+    private List<TrainSearchDtos.TrainSearchResult> queryDatabase(String from, String to, LocalDate date) {
         return jdbc.query("""
             SELECT t.id AS train_id, t.train_number, t.name AS train_name,
                    sf.code AS from_code, sf.name AS from_station,
@@ -44,7 +92,9 @@ public class TrainSearchService {
                 return new TrainSearchDtos.TrainSearchResult(rs.getLong("train_id"), rs.getString("train_number"),
                     rs.getString("train_name"), rs.getString("from_code"), rs.getString("from_station"),
                     rs.getString("to_code"), rs.getString("to_station"), departure, arrival, minutes);
-            }, java.sql.Date.valueOf(date), from, to);
+            }, java.sql.Date.valueOf(date), from, to).stream()
+            .filter(train -> train.durationMinutes() > 0 && train.durationMinutes() <= 72 * 60L)
+            .toList();
     }
 
     private static String normalizeCode(String code) {
