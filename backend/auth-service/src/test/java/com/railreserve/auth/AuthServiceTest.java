@@ -36,6 +36,34 @@ class AuthServiceTest {
     }
 
     @Test
+    void refreshRejectsUnknownToken() {
+        when(refreshTokens.findByTokenHashForUpdate(anyString())).thenReturn(Optional.empty());
+        assertThrows(org.springframework.security.authentication.BadCredentialsException.class,
+            () -> service.refresh("not-a-valid-refresh-token"));
+        verify(refreshTokens).findByTokenHashForUpdate(anyString());
+    }
+
+    @Test
+    void logoutRevokesTheEntireRefreshTokenFamily() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID familyId = UUID.randomUUID();
+        String rawToken = "refresh-token-for-test";
+        String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(rawToken.getBytes(StandardCharsets.UTF_8)));
+        when(refreshTokens.findByTokenHashForUpdate(hash)).thenReturn(Optional.of(
+            new RefreshToken(userId, familyId, hash, Instant.now().plusSeconds(600))));
+
+        service.logout(rawToken);
+
+        verify(refreshTokens).revokeFamily(eq(familyId), any(Instant.class));
+    }
+
+    @Test
+    void rejectsInvalidJwtTtlConfiguration() {
+        assertThrows(IllegalArgumentException.class, () -> new AuthService(users, refreshTokens,
+            new BCryptPasswordEncoder(), mock(JwtEncoder.class), 30, 604800));
+    }
+
+    @Test
     void loginRejectsUnknownEmail() {
         when(users.findByEmailIgnoreCase("missing@example.com")).thenReturn(Optional.empty());
         assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () ->
