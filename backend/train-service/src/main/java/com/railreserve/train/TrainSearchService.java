@@ -31,6 +31,7 @@ public class TrainSearchService {
 
     @Transactional(readOnly = true)
     public List<TrainSearchDtos.TrainSearchResult> search(String fromCode, String toCode, LocalDate date) {
+        if (date == null) throw new IllegalArgumentException("Journey date is required.");
         String from = normalizeCode(fromCode);
         String to = normalizeCode(toCode);
         if (from.equals(to)) throw new IllegalArgumentException("Departure and destination stations must be different.");
