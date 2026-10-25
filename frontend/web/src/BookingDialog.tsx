@@ -59,7 +59,7 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
       const body = await response.json();
       if (!response.ok) throw new Error(body.message || body.error || 'Could not start payment.');
       setPayment(body as Payment);
-      window.open(String(body.checkoutUrl), '_blank', 'noopener,noreferrer');
+
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not start payment.'); }
     finally { setLoading(false); }
   }
@@ -106,7 +106,7 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
       {booking ? <>
         <div className="bookingreceipt"><span>Booking reference</span><strong>{booking.bookingReference}</strong><span>Status</span><strong>{booking.status}</strong><span>Seat inventory IDs</span><strong>{booking.seatIds.join(', ')}</strong><span>Server-calculated total</span><strong>₹{Number(booking.totalAmount).toFixed(2)}</strong>{booking.holdExpiresAt && <><span>Hold expires</span><strong>{new Date(booking.holdExpiresAt).toLocaleString()}</strong></>}</div>
         <p>{payment ? `Payment status: ${payment.paymentStatus}. Booking status: ${payment.bookingStatus}.` : 'Use the secure hosted checkout. Booking confirmation is applied only after the signed provider webhook is verified.'}</p>
-        {booking.status === 'PENDING_PAYMENT' && <><button className="searchbtn" disabled={loading} onClick={startPayment}>{loading ? 'Opening checkout…' : 'Pay securely with Razorpay'}</button><button className="custom-btn" disabled={loading} onClick={refreshPayment}>Refresh payment status</button><button className="custom-btn" disabled={loading} onClick={cancelHold}>Cancel seat hold</button></>}
+        {booking.status === 'PENDING_PAYMENT' && <>{payment?.checkoutUrl ? <a className="searchbtn" href={payment.checkoutUrl} target="_blank" rel="noreferrer">Continue to secure Razorpay checkout ↗</a> : <button className="searchbtn" disabled={loading} onClick={startPayment}>{loading ? 'Preparing checkout…' : 'Prepare secure payment'}</button>}<button className="custom-btn" disabled={loading} onClick={refreshPayment}>Refresh payment status</button><button className="custom-btn" disabled={loading} onClick={cancelHold}>Cancel seat hold</button></>}
       </> : <>
         {seats.length === 0 && !error && <p>No available seats are configured for this train and date.</p>}
         <div className="seatgrid">{seats.map(seat => <label key={seat.inventoryId} className={'seatoption ' + (selected.includes(seat.inventoryId) ? 'selected' : '')}>
