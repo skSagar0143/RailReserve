@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  ActivityIndicator, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text,
+  ActivityIndicator, Linking, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text,
   TextInput, TouchableOpacity, View
 } from 'react-native';
 
@@ -16,6 +16,7 @@ type Booking = {
   journeyDate: string; seatIds: number[]; totalAmount: number; holdExpiresAt: string | null;
 };
 type Tokens = { accessToken: string; refreshToken: string; role: string };
+type PaymentStatus = { bookingStatus: string; paymentStatus: string; checkoutUrl?: string | null };
 
 const themes: Record<Theme, { accent: string; background: string; panel: string }> = {
   ocean: { accent: '#45d6c8', background: '#081626', panel: '#122338' },
@@ -47,6 +48,7 @@ export default function App() {
   const [seats, setSeats] = useState<Seat[]>([]);
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [booking, setBooking] = useState<Booking | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const colors = themes[theme];
 
@@ -185,12 +187,46 @@ export default function App() {
       const body = await response.json();
       if (!response.ok) throw new Error(body.message || body.error || 'Booking request failed.');
       setBooking(body as Booking);
-      setMessage('Seat hold created. Payment is not connected; the hold expires automatically.');
+      setPaymentStatus(null);
+      setMessage('Seat hold created. Continue to secure checkout to confirm your booking.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Booking request failed.');
     } finally {
       setLoading(false);
     }
+  }
+
+  async function startPayment() {
+    if (!booking || !accessToken) return;
+    setLoading(true); setMessage('');
+    try {
+      const response = await authenticatedFetch(apiBase + '/api/v1/payments/bookings/' + booking.id + '/checkout', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + accessToken }
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.message || body.error || 'Could not start payment.');
+      setPaymentStatus(body as PaymentStatus);
+      await Linking.openURL(String(body.checkoutUrl));
+      setMessage('Secure checkout opened. After paying, return here and refresh payment status.');
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not start payment.'); }
+    finally { setLoading(false); }
+  }
+
+  async function refreshPayment() {
+    if (!booking || !accessToken) return;
+    setLoading(true); setMessage('');
+    try {
+      const response = await authenticatedFetch(apiBase + '/api/v1/payments/bookings/' + booking.id, {
+        headers: { Authorization: 'Bearer ' + accessToken }
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.message || 'Could not refresh payment status.');
+      setPaymentStatus(body as PaymentStatus);
+      setBooking(current => current ? { ...current, status: body.bookingStatus } : current);
+      setMessage('Payment: ' + body.paymentStatus + ' · Booking: ' + body.bookingStatus);
+      if (body.bookingStatus === 'CONFIRMED') await loadBookings();
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not refresh payment status.'); }
+    finally { setLoading(false); }
   }
 
   async function cancelHold() {
@@ -273,7 +309,8 @@ export default function App() {
             <Text style={styles.trainName}>Reference: {booking.bookingReference}</Text>
             <Text style={styles.muted}>Status: {booking.status} · Total ₹{Number(booking.totalAmount).toFixed(2)}</Text>
             {booking.holdExpiresAt && <Text style={styles.muted}>Hold expires: {new Date(booking.holdExpiresAt).toLocaleString()}</Text>}
-            {booking.status === 'PENDING_PAYMENT' && <TouchableOpacity style={[styles.button, { backgroundColor: colors.accent }]} onPress={cancelHold} disabled={loading}><Text style={{ color: colors.background, fontWeight: '800' }}>Cancel hold</Text></TouchableOpacity>}
+            {paymentStatus && <Text style={styles.muted}>Payment status: {paymentStatus.paymentStatus}</Text>}
+            {booking.status === 'PENDING_PAYMENT' && <><TouchableOpacity style={[styles.button, { backgroundColor: colors.accent }]} onPress={startPayment} disabled={loading}><Text style={{ color: colors.background, fontWeight: '800' }}>{loading ? 'Opening checkout…' : 'Pay securely with Razorpay'}</Text></TouchableOpacity><TouchableOpacity style={styles.switchButton} onPress={refreshPayment} disabled={loading}><Text style={{ color: colors.accent }}>Refresh payment status</Text></TouchableOpacity><TouchableOpacity style={styles.switchButton} onPress={cancelHold} disabled={loading}><Text style={styles.muted}>Cancel seat hold</Text></TouchableOpacity></>}
           </> : <>
             <View style={styles.seatGrid}>{seats.map(seat => <TouchableOpacity key={seat.inventoryId} onPress={() => toggleSeat(seat.inventoryId)} style={[styles.seat, { borderColor: selectedSeats.includes(seat.inventoryId) ? colors.accent : '#ffffff24', backgroundColor: selectedSeats.includes(seat.inventoryId) ? '#1d594f' : '#ffffff05' }]}>
               <Text style={styles.seatText}>{seat.coachCode}-{seat.seatNumber}</Text><Text style={styles.muted}>₹{Number(seat.fareAmount).toFixed(2)}</Text>
@@ -292,7 +329,7 @@ export default function App() {
         <Text style={styles.label}>TEXT SIZE</Text>
         <View style={styles.row}><TouchableOpacity onPress={() => setFontScale(v => Math.max(.9, v - .1))} style={styles.theme}><Text style={styles.muted}>A−</Text></TouchableOpacity><TouchableOpacity onPress={() => setFontScale(v => Math.min(1.3, v + .1))} style={styles.theme}><Text style={styles.muted}>A+</Text></TouchableOpacity></View>
       </View>
-      <Text style={styles.muted}>No payment gateway or real email/SMS provider is connected yet. Seat holds are pending payment and expire automatically.</Text>
+      <Text style={styles.muted}>Payments use a hosted Razorpay checkout when the server is configured with credentials. Booking confirmation requires a verified payment webhook.</Text>
     </ScrollView>
 
     {showAuth && <View style={styles.authOverlay}><View style={[styles.authCard, { backgroundColor: colors.panel }]}>
