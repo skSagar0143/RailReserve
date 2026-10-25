@@ -139,6 +139,21 @@ services:
       kafka:
         condition: service_started
     ports: ["127.0.0.1:8084:8084"]
+  gateway:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      auth-service:
+        condition: service_started
+      train-service:
+        condition: service_started
+      booking-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
 volumes:
   mysql_data:
   redis_data:
