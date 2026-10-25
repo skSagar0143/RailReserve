@@ -1,13 +1,41 @@
 server:
   port: ${SERVER_PORT:8084}
+  shutdown: graceful
 spring:
   application:
     name: notification-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/railreserve_notification?serverTimezone=UTC}
+    username: ${DB_USERNAME:railreserve_app}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:8}
+      connection-timeout: 3000
+  flyway:
+    enabled: true
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     consumer:
-      group-id: railreserve-notifications
+      group-id: ${KAFKA_CONSUMER_GROUP:railreserve-notifications}
       enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    listener:
+      ack-mode: record
+railreserve:
+  kafka:
+    booking-topic: ${BOOKING_EVENTS_TOPIC:railreserve.booking.events}
+    booking-topic-partitions: ${BOOKING_EVENTS_PARTITIONS:6}
+    booking-topic-replication-factor: ${BOOKING_EVENTS_REPLICATION_FACTOR:1}
 management:
   endpoints:
     web:
