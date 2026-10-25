@@ -14,11 +14,13 @@
 - [x] Transactional booking API foundation with server-configured seat fares, row locking, 10-minute seat holds, idempotency keys, cancellation of unpaid holds and outbox event persistence.
 - [x] Scheduled Kafka outbox publisher with idempotent producer settings.
 - [x] Notification inbox deduplication, durable notification job records and retry/dead-letter topic configuration.
-- [x] Initial JUnit/Mockito tests and CI workflow for backend, web and mobile.
+- [x] Initial JUnit/Mockito tests and CI workflow for backend, web, mobile and infrastructure.
+- [x] JaCoCo per-module and aggregate HTML/XML coverage reporting, with test and coverage reports uploaded as a CI artifact.
 
 ## Still required before production
 
-- [ ] Make CI fully green on the current commit; run migrations and the entire Compose stack locally.
+- [ ] Confirm the latest CI run including JaCoCo aggregation is green; run migrations and the entire Compose stack in an integration environment.
+- [ ] Expand coverage to auth success/refresh/reuse, booking transaction and concurrency edge cases, Kafka outbox/inbox retry behavior, and API integration tests; set coverage thresholds after measuring a trustworthy baseline.
 - [ ] Add payment provider integration, verified fare/route data, payment webhook signature validation, refund/reconciliation and expiry cleanup operations.
 - [ ] Add key-ID-aware RSA rotation/JWKS, account verification/recovery, account/device management and stronger abuse controls.
 - [ ] Complete role/ownership tests, integration tests, Testcontainers, API contract tests and concurrent oversell/idempotency tests.
