@@ -7,6 +7,8 @@ import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import tools.jackson.databind.ObjectMapper;
 
 class TrainSearchServiceTest {
     private JdbcTemplate jdbc;
@@ -15,7 +17,7 @@ class TrainSearchServiceTest {
     @BeforeEach
     void setUp() {
         jdbc = mock(JdbcTemplate.class);
-        service = new TrainSearchService(jdbc);
+        service = new TrainSearchService(jdbc, mock(StringRedisTemplate.class), new ObjectMapper());
     }
 
     @Test
