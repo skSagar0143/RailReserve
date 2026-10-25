@@ -83,6 +83,7 @@ public class ServiceSecurityConfig {
                 auth.requestMatchers("/api/v1/health", "/actuator/health/**").permitAll();
                 auth.requestMatchers("/actuator/**").denyAll();
                 
+                auth.requestMatchers("/api/v1/admin/**").hasRole("ADMIN");
                 auth.anyRequest().authenticated();
             })
             .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(converter)))
