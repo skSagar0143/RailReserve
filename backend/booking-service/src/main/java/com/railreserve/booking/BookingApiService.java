@@ -21,6 +21,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -158,12 +159,34 @@ public class BookingApiService {
             seatIdsFor(b.id()), b.totalAmount(), null);
     }
 
+    @Scheduled(fixedDelayString = "${railreserve.booking.expiry-poll-ms:30000}")
+    @Transactional
+    public void expirePendingHolds() {
+        expirePendingHoldsInternal();
+    }
+
     private void releaseExpiredHolds() {
-        Instant now = Instant.now();
-        jdbc.update("UPDATE seat_inventory SET status='AVAILABLE', held_until=NULL, version=version+1 WHERE status='HELD' AND held_until<=?",
-            java.sql.Timestamp.from(now));
-        jdbc.update("UPDATE bookings SET status='EXPIRED' WHERE status='PENDING_PAYMENT' AND hold_expires_at<=?",
-            java.sql.Timestamp.from(now));
+        expirePendingHoldsInternal();
+    }
+
+    private void expirePendingHoldsInternal() {
+        List<ExpiredBooking> expired = jdbc.query(
+            "SELECT id, booking_reference, customer_id FROM bookings WHERE status='PENDING_PAYMENT' AND hold_expires_at<=CURRENT_TIMESTAMP(6) ORDER BY hold_expires_at LIMIT 100 FOR UPDATE SKIP LOCKED",
+            (rs, row) -> new ExpiredBooking(uuidFromBytes(rs.getBytes("id")), rs.getString("booking_reference"),
+                uuidFromBytes(rs.getBytes("customer_id"))));
+        for (ExpiredBooking booking : expired) {
+            int changed = jdbc.update("UPDATE bookings SET status='EXPIRED' WHERE id=? AND status='PENDING_PAYMENT'",
+                uuidBytes(booking.id()));
+            if (changed == 1) {
+                jdbc.update("UPDATE seat_inventory si JOIN booking_seats bs ON bs.inventory_id=si.id SET si.status='AVAILABLE', si.held_until=NULL, si.version=si.version+1 WHERE bs.booking_id=? AND si.status='HELD'",
+                    uuidBytes(booking.id()));
+                writeOutbox(booking.id(), "BookingExpired", Map.of(
+                    "eventId", UUID.randomUUID().toString(),
+                    "bookingId", booking.id().toString(),
+                    "bookingReference", booking.reference(),
+                    "customerId", booking.customerId().toString()));
+            }
+        }
     }
 
     private ExistingBooking findByIdempotencyKey(UUID customerId, String key) {
@@ -242,6 +265,7 @@ public class BookingApiService {
         return new UUID(buffer.getLong(), buffer.getLong());
     }
 
+    private record ExpiredBooking(UUID id, String reference, UUID customerId) {}
     private record SeatRow(long id, long trainId, LocalDate journeyDate, String status, BigDecimal fareAmount) {}
     private record ExistingBooking(UUID id, String reference, String status, Long trainId, LocalDate journeyDate,
                                    BigDecimal totalAmount, String requestHash, Instant holdExpiresAt) {}
