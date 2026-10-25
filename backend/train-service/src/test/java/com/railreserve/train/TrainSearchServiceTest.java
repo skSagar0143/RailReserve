@@ -21,6 +21,12 @@ class TrainSearchServiceTest {
     }
 
     @Test
+    void rejectsMissingJourneyDate() {
+        assertThrows(IllegalArgumentException.class, () -> service.search("NDLS", "BCT", null));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
     void rejectsSameDepartureAndDestination() {
         assertThrows(IllegalArgumentException.class,
             () -> service.search("NDLS", "ndls", LocalDate.now().plusDays(1)));
