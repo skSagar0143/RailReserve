@@ -58,7 +58,7 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
       const response = await apiFetch(base + '/api/v1/payments/bookings/' + booking.id + '/checkout', { method: 'POST', headers: { Authorization: 'Bearer ' + accessToken } });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message || body.error || 'Could not start payment.');
-      setPayment(body as Payment);
+      setPayment({ ...body, paymentStatus: body.status, bookingStatus: booking.status } as Payment);
 
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not start payment.'); }
     finally { setLoading(false); }
