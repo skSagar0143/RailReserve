@@ -1,0 +1,3 @@
+CREATE TABLE stations(id BIGINT PRIMARY KEY AUTO_INCREMENT,code VARCHAR(10) NOT NULL,name VARCHAR(120) NOT NULL,city VARCHAR(100) NOT NULL,active BOOLEAN NOT NULL DEFAULT TRUE,UNIQUE KEY uq_stations_code(code));
+CREATE TABLE trains(id BIGINT PRIMARY KEY AUTO_INCREMENT,train_number VARCHAR(20) NOT NULL,name VARCHAR(150) NOT NULL,active BOOLEAN NOT NULL DEFAULT TRUE,UNIQUE KEY uq_trains_number(train_number));
+CREATE TABLE train_stops(id BIGINT PRIMARY KEY AUTO_INCREMENT,train_id BIGINT NOT NULL,station_id BIGINT NOT NULL,stop_sequence INT NOT NULL,arrival_time TIME NULL,departure_time TIME NULL,day_offset INT NOT NULL DEFAULT 0,FOREIGN KEY(train_id) REFERENCES trains(id),FOREIGN KEY(station_id) REFERENCES stations(id),UNIQUE KEY uq_train_sequence(train_id,stop_sequence));
