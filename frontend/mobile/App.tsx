@@ -205,7 +205,7 @@ export default function App() {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message || body.error || 'Could not start payment.');
-      setPaymentStatus(body as PaymentStatus);
+      setPaymentStatus({ ...body, paymentStatus: body.status, bookingStatus: booking.status } as PaymentStatus);
       await Linking.openURL(String(body.checkoutUrl));
       setMessage('Secure checkout opened. After paying, return here and refresh payment status.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not start payment.'); }
