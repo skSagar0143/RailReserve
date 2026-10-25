@@ -120,6 +120,12 @@ public class BookingApiService {
 
     @Transactional(readOnly = true)
     public List<BookingDtos.AvailableSeat> availability(long trainId, LocalDate journeyDate) {
+        if (trainId <= 0 || journeyDate == null) {
+            throw new IllegalArgumentException("A positive train ID and journey date are required.");
+        }
+        if (journeyDate.isBefore(LocalDate.now(ZoneId.of("Asia/Kolkata")))) {
+            throw new IllegalArgumentException("Journey date cannot be in the past.");
+        }
         return jdbc.query("SELECT id, coach_code, seat_number, fare_amount FROM seat_inventory WHERE train_id=? AND journey_date=? AND (status='AVAILABLE' OR (status='HELD' AND held_until<=CURRENT_TIMESTAMP(6))) ORDER BY coach_code, seat_number",
             (rs, row) -> new BookingDtos.AvailableSeat(rs.getLong("id"), rs.getString("coach_code"),
                 rs.getString("seat_number"), rs.getBigDecimal("fare_amount")), trainId, java.sql.Date.valueOf(journeyDate));
@@ -127,6 +133,7 @@ public class BookingApiService {
 
     @Transactional(readOnly = true)
     public List<BookingDtos.BookingResponse> mine(UUID customerId) {
+        if (customerId == null) throw new IllegalArgumentException("Customer identity is required.");
         List<ExistingBooking> records = jdbc.query(
             "SELECT id, booking_reference, status, train_id, journey_date, total_amount, request_hash, created_at, hold_expires_at FROM bookings WHERE customer_id=? ORDER BY created_at DESC LIMIT 100",
             (rs, row) -> new ExistingBooking(uuidFromBytes(rs.getBytes("id")), rs.getString("booking_reference"),
@@ -138,6 +145,7 @@ public class BookingApiService {
 
     @Transactional(readOnly = true)
     public BookingDtos.BookingResponse get(UUID customerId, UUID bookingId) {
+        if (customerId == null || bookingId == null) throw new IllegalArgumentException("Customer and booking identities are required.");
         ExistingBooking b = findById(bookingId);
         if (b == null) throw new BookingConflictException("Booking was not found.");
         if (!customerId.equals(customerIdFor(bookingId))) throw new AccessDeniedException("Booking belongs to another customer.");
@@ -147,6 +155,7 @@ public class BookingApiService {
 
     @Transactional
     public BookingDtos.BookingResponse cancel(UUID customerId, UUID bookingId) {
+        if (customerId == null || bookingId == null) throw new IllegalArgumentException("Customer and booking identities are required.");
         ExistingBooking b = findByIdForUpdate(bookingId);
         if (b == null) throw new BookingConflictException("Booking was not found.");
         if (!customerId.equals(customerIdFor(bookingId))) throw new AccessDeniedException("Booking belongs to another customer.");
