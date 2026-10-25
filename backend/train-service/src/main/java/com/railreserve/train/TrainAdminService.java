@@ -7,12 +7,20 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TrainAdminService {
+    private static final Logger log = LoggerFactory.getLogger(TrainAdminService.class);
+    private static final String CACHE_VERSION_KEY = "railreserve:train:cache-version";
     private final JdbcTemplate jdbc;
-    public TrainAdminService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    private final StringRedisTemplate redis;
+    public TrainAdminService(JdbcTemplate jdbc, StringRedisTemplate redis) { this.jdbc = jdbc; this.redis = redis; }
 
     @Transactional
     public TrainAdminDtos.CreatedResource createStation(TrainAdminDtos.CreateStationRequest request) {
@@ -25,6 +33,7 @@ public class TrainAdminService {
             ps.setString(3, request.city().trim());
             return ps;
         }, key);
+        invalidateCacheAfterCommit();
         return new TrainAdminDtos.CreatedResource(key.getKey().longValue(), "CREATED");
     }
 
@@ -38,6 +47,7 @@ public class TrainAdminService {
             ps.setString(2, request.name().trim());
             return ps;
         }, key);
+        invalidateCacheAfterCommit();
         return new TrainAdminDtos.CreatedResource(key.getKey().longValue(), "CREATED");
     }
 
@@ -59,6 +69,7 @@ public class TrainAdminService {
             ps.setInt(6, request.dayOffset());
             return ps;
         }, key);
+        invalidateCacheAfterCommit();
         return new TrainAdminDtos.CreatedResource(key.getKey().longValue(), "CREATED");
     }
 
@@ -76,6 +87,21 @@ public class TrainAdminService {
             ps.setDate(2, java.sql.Date.valueOf(request.serviceDate()));
             return ps;
         }, key);
+        invalidateCacheAfterCommit();
         return new TrainAdminDtos.CreatedResource(key.getKey().longValue(), "CREATED");
+    }
+    private void invalidateCacheAfterCommit() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        redis.opsForValue().increment(CACHE_VERSION_KEY);
+                    } catch (Exception ex) {
+                        log.warn("Could not bump train cache version after admin update; cache entries will expire by TTL.");
+                    }
+                }
+            });
+        }
     }
 }
