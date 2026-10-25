@@ -21,6 +21,30 @@ jobs:
           java-version: '21'
           cache: maven
       - run: mvn -B -ntp clean verify
+      - name: Summarize aggregate JaCoCo coverage
+        run: |
+          python - <<'PY'
+          import pathlib, sys, xml.etree.ElementTree as ET
+          report = pathlib.Path('backend/coverage-report/target/site/jacoco-aggregate/jacoco.xml')
+          if not report.exists():
+              print(f'JaCoCo aggregate XML not found: {report}', file=sys.stderr)
+              sys.exit(1)
+          root = ET.parse(report).getroot()
+          totals = {counter.attrib['type']: (int(counter.attrib['covered']), int(counter.attrib['missed'])) for counter in root.findall('counter')}
+          for kind in ('INSTRUCTION', 'BRANCH', 'LINE', 'METHOD', 'CLASS'):
+              covered, missed = totals.get(kind, (0, 0))
+              total = covered + missed
+              percent = (covered * 100 / total) if total else 100.0
+              print(f'{kind}: {percent:.2f}% ({covered}/{total})')
+          lines = ['## JaCoCo aggregate coverage', '']
+          for kind in ('INSTRUCTION', 'BRANCH', 'LINE', 'METHOD', 'CLASS'):
+              covered, missed = totals.get(kind, (0, 0))
+              total = covered + missed
+              percent = (covered * 100 / total) if total else 100.0
+              lines.append(f'- **{kind.title()} coverage:** {percent:.2f}% ({covered}/{total})')
+          with open(__import__('os').environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('\\n'.join(lines) + '\\n')
+          PY
       - name: Publish JaCoCo and Surefire reports
         if: always()
         uses: actions/upload-artifact@v4
