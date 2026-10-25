@@ -4,7 +4,7 @@ COPY pom.xml ./pom.xml
 COPY backend ./backend
 ARG SERVICE_MODULE
 RUN test -n "$SERVICE_MODULE" && mvn -B -ntp -pl "backend/$SERVICE_MODULE" -am package -DskipTests
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 RUN groupadd --system app && useradd --system --gid app --home-dir /app app
 WORKDIR /app
 ARG SERVICE_MODULE
