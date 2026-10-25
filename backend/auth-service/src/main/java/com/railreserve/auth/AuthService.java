@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -102,6 +103,7 @@ public class AuthService {
             .subject(user.getId().toString())
             .claim("email", user.getEmail())
             .claim("role", user.getRole())
+            .audience(List.of("railreserve-api"))
             .id(UUID.randomUUID().toString())
             .build();
         JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256).keyId("railreserve-rsa-1").build();
