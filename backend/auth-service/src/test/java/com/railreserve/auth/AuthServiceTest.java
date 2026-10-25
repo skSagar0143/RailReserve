@@ -78,4 +78,33 @@ class AuthServiceTest {
         assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () ->
             service.login(new AuthDtos.LoginRequest("missing@example.com", "password")));
     }
+    @Test
+    void rejectsNullRegistrationAndLoginRequestsBeforeRepositoryWork() {
+        assertThrows(IllegalArgumentException.class, () -> service.register(null));
+        assertThrows(IllegalArgumentException.class, () -> service.login(null));
+        verifyNoInteractions(users, refreshTokens);
+    }
+
+    @Test
+    void refreshRejectsBlankOrOversizedTokensBeforeRepositoryWork() {
+        assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () -> service.refresh(" "));
+        assertThrows(org.springframework.security.authentication.BadCredentialsException.class, () -> service.refresh("x".repeat(513)));
+        verifyNoInteractions(refreshTokens);
+    }
+
+    @Test
+    void logoutIgnoresMissingOrOversizedToken() {
+        service.logout(null);
+        service.logout(" ");
+        service.logout("x".repeat(513));
+        verifyNoInteractions(refreshTokens);
+    }
+
+    @Test
+    void registrationRejectsMissingEmailBeforeRepositoryWork() {
+        assertThrows(IllegalArgumentException.class, () -> service.register(
+            new AuthDtos.RegisterRequest(null, "LongSecurePassword123!", "Person")));
+        verifyNoInteractions(users, refreshTokens);
+    }
+
 }
