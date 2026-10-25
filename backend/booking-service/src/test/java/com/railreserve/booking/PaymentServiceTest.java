@@ -48,7 +48,7 @@ class PaymentServiceTest {
     void refusesCheckoutWhenPaymentIsDisabled() {
         PaymentService disabled = new PaymentService(jdbc, new ObjectMapper(), "", "", "",
             "http://localhost:5173/payment-result", "INR", false);
-        assertThrows(IllegalArgumentException.class, () -> disabled.createCheckout(null, null));
+        assertThrows(IllegalStateException.class, () -> disabled.createCheckout(java.util.UUID.randomUUID(), java.util.UUID.randomUUID()));
         verifyNoInteractions(jdbc);
     }
 }
