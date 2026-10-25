@@ -12,11 +12,12 @@ import java.util.Base64;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
@@ -27,7 +28,11 @@ public class RsaKeyConfiguration {
     RSAPrivateKey rsaPrivateKey(@Value("${security.jwt.private-key-path}") String path) throws Exception {
         String pem = Files.readString(Path.of(path), StandardCharsets.UTF_8);
         byte[] der = Base64.getDecoder().decode(pem.replaceAll("-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\\s", ""));
-        return (RSAPrivateKey) KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(der));
+        RSAPrivateKey key = (RSAPrivateKey) KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(der));
+        if (key.getModulus().bitLength() < 3072) {
+            throw new IllegalStateException("RSA signing key must be at least 3072 bits.");
+        }
+        return key;
     }
 
     @Bean
@@ -39,12 +44,18 @@ public class RsaKeyConfiguration {
 
     @Bean
     JwtEncoder jwtEncoder(RSAPublicKey publicKey, RSAPrivateKey privateKey) {
+        if (!publicKey.getModulus().equals(privateKey.getModulus())) {
+            throw new IllegalStateException("Configured RSA public and private keys do not match.");
+        }
         RSAKey key = new RSAKey.Builder(publicKey).privateKey(privateKey).keyID("railreserve-rsa-1").build();
         return new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(key)));
     }
 
     @Bean
     JwtDecoder jwtDecoder(RSAPublicKey publicKey) {
-        return NimbusJwtDecoder.withPublicKey(publicKey).signatureAlgorithm(SignatureAlgorithm.RS256).build();
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withPublicKey(publicKey)
+            .signatureAlgorithm(SignatureAlgorithm.RS256).build();
+        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer("railreserve-auth"));
+        return decoder;
     }
 }
