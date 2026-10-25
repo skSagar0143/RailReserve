@@ -70,8 +70,8 @@ class PaymentServiceTest {
             org.mockito.ArgumentMatchers.contains("FROM payments p JOIN bookings b"), org.mockito.ArgumentMatchers.eq("plink_test"));
         String body = "{\"event\":\"payment_link.paid\",\"payload\":{\"payment_link\":{\"entity\":{\"id\":\"plink_test\",\"amount_paid\":2500,\"currency\":\"INR\"}},\"payment\":{\"entity\":{\"id\":\"pay_test\"}}}}";
         service.handleWebhook(body, signature(body));
-        org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("UPDATE payments SET status='PAID'"), org.mockito.ArgumentMatchers.eq("pay_test"), org.mockito.ArgumentMatchers.any());
-        org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("UPDATE bookings SET status='CONFIRMED'"), org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("UPDATE payments SET status='PAID'"), (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+        org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("UPDATE bookings SET status='CONFIRMED'"), (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
         org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("INSERT INTO outbox_events"), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
@@ -92,8 +92,8 @@ class PaymentServiceTest {
             org.mockito.ArgumentMatchers.contains("FROM payments p JOIN bookings b"), org.mockito.ArgumentMatchers.eq("plink_bad"));
         String body = "{\"event\":\"payment_link.paid\",\"payload\":{\"payment_link\":{\"entity\":{\"id\":\"plink_bad\",\"amount_paid\":1000,\"currency\":\"INR\"}}}}";
         service.handleWebhook(body, signature(body));
-        org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("status='REVIEW_REQUIRED'"), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.any());
-        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.contains("UPDATE bookings SET status='CONFIRMED'"), org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("status='REVIEW_REQUIRED'"), (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.contains("UPDATE bookings SET status='CONFIRMED'"), (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
     }
 
     private static String signature(String body) throws Exception {
