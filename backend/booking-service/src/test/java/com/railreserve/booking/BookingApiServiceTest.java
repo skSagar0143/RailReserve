@@ -29,6 +29,21 @@ class BookingApiServiceTest {
     }
 
     @Test
+    void rejectsNullAndOversizedIdempotencyKeysBeforeDatabaseWork() {
+        var request = new BookingDtos.CreateBookingRequest(1L, LocalDate.now().plusDays(1), List.of(1L));
+        assertThrows(IllegalArgumentException.class, () -> service.create(java.util.UUID.randomUUID(), null, request));
+        assertThrows(IllegalArgumentException.class, () -> service.create(java.util.UUID.randomUUID(), "x".repeat(129), request));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsJourneyDateInThePastBeforeDatabaseWork() {
+        var request = new BookingDtos.CreateBookingRequest(1L, LocalDate.now().minusDays(1), List.of(1L));
+        assertThrows(IllegalArgumentException.class, () -> service.create(java.util.UUID.randomUUID(), "idempotency-key-12345", request));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
     void rejectsDuplicateSeatIdsBeforeDatabaseWork() {
         var request = new BookingDtos.CreateBookingRequest(1L, LocalDate.now().plusDays(1), List.of(1L, 1L));
         assertThrows(IllegalArgumentException.class, () -> service.create(java.util.UUID.randomUUID(), "idempotency-key-12345", request));
