@@ -44,6 +44,33 @@ class BookingApiServiceTest {
     }
 
     @Test
+    void rejectsNullRequestBeforeDatabaseWork() {
+        assertThrows(IllegalArgumentException.class, () -> service.create(java.util.UUID.randomUUID(), "idempotency-key-12345", null));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsEmptySeatListBeforeDatabaseWork() {
+        var request = new BookingDtos.CreateBookingRequest(1L, LocalDate.now().plusDays(1), List.of());
+        assertThrows(IllegalArgumentException.class, () -> service.create(java.util.UUID.randomUUID(), "idempotency-key-12345", request));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsMoreThanSixSeatsBeforeDatabaseWork() {
+        var request = new BookingDtos.CreateBookingRequest(1L, LocalDate.now().plusDays(1), List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L));
+        assertThrows(IllegalArgumentException.class, () -> service.create(java.util.UUID.randomUUID(), "idempotency-key-12345", request));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsNonPositiveTrainIdBeforeDatabaseWork() {
+        var request = new BookingDtos.CreateBookingRequest(0L, LocalDate.now().plusDays(1), List.of(1L));
+        assertThrows(IllegalArgumentException.class, () -> service.create(java.util.UUID.randomUUID(), "idempotency-key-12345", request));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
     void rejectsDuplicateSeatIdsBeforeDatabaseWork() {
         var request = new BookingDtos.CreateBookingRequest(1L, LocalDate.now().plusDays(1), List.of(1L, 1L));
         assertThrows(IllegalArgumentException.class, () -> service.create(java.util.UUID.randomUUID(), "idempotency-key-12345", request));
