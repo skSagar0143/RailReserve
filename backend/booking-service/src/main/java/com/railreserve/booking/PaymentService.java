@@ -137,20 +137,28 @@ public class PaymentService {
         Map<String,Object> link=(Map<String,Object>)linkPart.get("entity");
         if(link==null || link.get("id")==null)return;
         String linkId=String.valueOf(link.get("id"));
+        Long paidAmount = link.get("amount_paid") instanceof Number n ? n.longValue() : null;
+        String paidCurrency = link.get("currency") == null ? null : String.valueOf(link.get("currency"));
         String providerPaymentId=null;
         Object paymentPart=payload.get("payment");
         if(paymentPart instanceof Map<?,?> pm && pm.get("entity") instanceof Map<?,?> pe && pe.get("id")!=null) providerPaymentId=String.valueOf(pe.get("id"));
-        confirmPaidLink(linkId,providerPaymentId);
+        confirmPaidLink(linkId,providerPaymentId,paidAmount,paidCurrency);
     }
 
-    private void confirmPaidLink(String linkId,String paymentId) {
+    private void confirmPaidLink(String linkId,String paymentId,Long paidAmount,String paidCurrency) {
         List<Map<String,Object>> rows=jdbc.queryForList(
-            "SELECT p.id,p.booking_id,p.status,b.status AS booking_status,b.booking_reference,b.customer_id,b.hold_expires_at FROM payments p JOIN bookings b ON b.id=p.booking_id WHERE p.provider='RAZORPAY' AND p.provider_link_id=? FOR UPDATE",linkId);
+            "SELECT p.id,p.booking_id,p.status,p.amount,p.currency,b.status AS booking_status,b.booking_reference,b.customer_id,b.hold_expires_at FROM payments p JOIN bookings b ON b.id=p.booking_id WHERE p.provider='RAZORPAY' AND p.provider_link_id=? FOR UPDATE",linkId);
         if(rows.isEmpty()) return;
         Map<String,Object> row=rows.getFirst();
         if("PAID".equals(String.valueOf(row.get("status")))) return;
         if(!"CREATED".equals(String.valueOf(row.get("status")))) return;
         UUID bookingId=uuidFromBytes((byte[])row.get("booking_id"));
+        java.math.BigDecimal expectedAmount=(java.math.BigDecimal)row.get("amount");
+        long expectedPaise=expectedAmount.movePointRight(2).longValue();
+        if(paidAmount==null || paidAmount.longValue()!=expectedPaise || paidCurrency==null || !paidCurrency.equals(String.valueOf(row.get("currency")))) {
+            jdbc.update("UPDATE payments SET status='REVIEW_REQUIRED',provider_payment_id=? WHERE id=?",paymentId,row.get("id"));
+            return;
+        }
         java.sql.Timestamp expires=(java.sql.Timestamp)row.get("hold_expires_at");
         if(!"PENDING_PAYMENT".equals(String.valueOf(row.get("booking_status"))) || expires==null || !expires.toInstant().isAfter(Instant.now())) {
             jdbc.update("UPDATE payments SET status='PAID_AFTER_EXPIRY',provider_payment_id=? WHERE id=?",paymentId, row.get("id"));
