@@ -33,7 +33,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @Configuration
 public class ServiceSecurityConfig {
     @Bean
-    RSAPublicKey rsaPublicKey(@Value("${security.jwt.public-key-path:/run/secrets/railreserve-public.pem}") String path) throws Exception {
+    RSAPublicKey rsaPublicKey(@Value("${RSA_PUBLIC_KEY_PATH:/run/secrets/railreserve-public.pem}") String path) throws Exception {
         String pem = Files.readString(Path.of(path), StandardCharsets.UTF_8);
         byte[] der = Base64.getDecoder().decode(pem.replaceAll("-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\\s", ""));
         return (RSAPublicKey) KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(der));
@@ -59,7 +59,7 @@ public class ServiceSecurityConfig {
     }
 
     @Bean
-    CorsConfigurationSource corsConfigurationSource(@Value("${security.cors.allowed-origins:http://localhost:5173}") String origins) {
+    CorsConfigurationSource corsConfigurationSource(@Value("${CORS_ALLOWED_ORIGINS:http://localhost:5173}") String origins) {
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowedOrigins(Arrays.stream(origins.split(",")).map(String::trim).filter(s -> !s.isBlank()).toList());
         cors.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
