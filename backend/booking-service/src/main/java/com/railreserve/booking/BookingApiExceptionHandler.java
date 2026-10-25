@@ -2,6 +2,7 @@ package com.railreserve.booking;
 
 import java.util.Map;
 import org.springframework.http.HttpStatus;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,6 +15,12 @@ public class BookingApiExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     public Map<String, String> conflict(BookingConflictException ex) {
         return Map.of("error", "booking_conflict", "message", ex.getMessage());
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public Map<String, String> dataConflict() {
+        return Map.of("error", "booking_conflict", "message", "A booking or idempotency key conflicts with an existing request. Retry with the same Idempotency-Key.");
     }
 
     @ExceptionHandler(AccessDeniedException.class)
