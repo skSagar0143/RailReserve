@@ -11,6 +11,8 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jose.jws.JwsHeader;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
@@ -31,6 +33,9 @@ public class AuthService {
                        PasswordEncoder passwordEncoder, JwtEncoder jwtEncoder,
                        @Value("${security.jwt.access-ttl-seconds:900}") long accessTtl,
                        @Value("${security.jwt.refresh-ttl-seconds:604800}") long refreshTtl) {
+        if (accessTtl < 60 || accessTtl > 3600 || refreshTtl < 600 || refreshTtl > 2592000) {
+            throw new IllegalArgumentException("JWT access TTL must be 60-3600 seconds and refresh TTL 600-2592000 seconds.");
+        }
         this.users = users;
         this.refreshTokens = refreshTokens;
         this.passwordEncoder = passwordEncoder;
@@ -62,7 +67,7 @@ public class AuthService {
     @Transactional
     public AuthDtos.TokenResponse refresh(String rawToken) {
         String hash = sha256(rawToken);
-        RefreshToken stored = refreshTokens.findByTokenHash(hash)
+        RefreshToken stored = refreshTokens.findByTokenHashForUpdate(hash)
             .orElseThrow(() -> new BadCredentialsException("Invalid refresh token."));
         Instant now = Instant.now();
         if (!stored.isUsable(now)) {
@@ -77,7 +82,7 @@ public class AuthService {
 
     @Transactional
     public void logout(String rawToken) {
-        refreshTokens.findByTokenHash(sha256(rawToken)).ifPresent(token -> token.revoke(Instant.now()));
+        refreshTokens.findByTokenHashForUpdate(sha256(rawToken)).ifPresent(token -> token.revoke(Instant.now()));
     }
 
     @Transactional(readOnly = true)
@@ -97,10 +102,10 @@ public class AuthService {
             .subject(user.getId().toString())
             .claim("email", user.getEmail())
             .claim("role", user.getRole())
-            .claim("scope", user.getRole())
             .id(UUID.randomUUID().toString())
             .build();
-        String accessToken = jwtEncoder.encode(JwtEncoderParameters.from(claims)).getTokenValue();
+        JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256).keyId("railreserve-rsa-1").build();
+        String accessToken = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
         byte[] random = new byte[48];
         secureRandom.nextBytes(random);
         String refreshToken = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
