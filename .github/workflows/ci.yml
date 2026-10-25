@@ -44,6 +44,17 @@ jobs:
               lines.append(f'- **{kind.title()} coverage:** {percent:.2f}% ({covered}/{total})')
           with open(__import__('os').environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
               summary.write('\\n'.join(lines) + '\\n')
+          minimums = {'LINE': 15.0, 'BRANCH': 15.0, 'CLASS': 20.0}
+          failures = []
+          for kind, minimum in minimums.items():
+              covered, missed = totals.get(kind, (0, 0))
+              total = covered + missed
+              percent = (covered * 100 / total) if total else 100.0
+              if percent < minimum:
+                  failures.append(f'{kind} coverage {percent:.2f}% is below required {minimum:.2f}%')
+          if failures:
+              print('Coverage quality gate failed: ' + '; '.join(failures), file=sys.stderr)
+              sys.exit(1)
           PY
       - name: Publish JaCoCo and Surefire reports
         if: always()
