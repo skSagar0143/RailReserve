@@ -29,4 +29,4 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Copy `.env.example` to `.env`, r
 
 **Not production-ready yet.** Some foundational flows are implemented, but the complete train schedule/admin system, payment and refund lifecycle, real notification delivery, web/mobile API integration, key rotation, account recovery, full security and concurrency tests, production TLS/secrets/observability, and verified deployment process remain unfinished. CI must be green on the latest commit and the full system must be tested before any real customer use.
 
-See [docs/ROADMAP.md](docs/ROADMAP.md), [docs/SECURITY.md](docs/SECURITY.md), and [docs/ADMIN_BOOTSTRAP.md](docs/ADMIN_BOOTSTRAP.md) for release gates and safe administrator setup.
+See [docs/API.md](docs/API.md), [docs/ROADMAP.md](docs/ROADMAP.md), [docs/SECURITY.md](docs/SECURITY.md), and [docs/ADMIN_BOOTSTRAP.md](docs/ADMIN_BOOTSTRAP.md) for endpoint details, release gates and safe administrator setup.
