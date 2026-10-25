@@ -80,7 +80,7 @@ public class ServiceSecurityConfig {
             .formLogin(form -> form.disable())
             .httpBasic(basic -> basic.disable())
             .authorizeHttpRequests(auth -> {
-                auth.requestMatchers("/api/v1/health", "/actuator/health/**").permitAll();
+                auth.requestMatchers("/api/v1/health", "/actuator/health/**", "/api/v1/payments/webhook").permitAll();
                 auth.requestMatchers("/actuator/**").denyAll();
                 
                 auth.requestMatchers("/api/v1/admin/**").hasRole("ADMIN");
