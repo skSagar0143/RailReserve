@@ -81,6 +81,7 @@ public class ServiceSecurityConfig {
             .httpBasic(basic -> basic.disable())
             .authorizeHttpRequests(auth -> {
                 auth.requestMatchers("/api/v1/health", "/actuator/health/**").permitAll();
+                auth.requestMatchers("/actuator/**").denyAll();
                 auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/stations").permitAll();
                 auth.anyRequest().authenticated();
             })
