@@ -35,6 +35,20 @@ class TrainSearchServiceTest {
     }
 
     @Test
+    void rejectsNullStationCode() {
+        assertThrows(IllegalArgumentException.class,
+            () -> service.search(null, "BCT", LocalDate.now().plusDays(1)));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsStationCodeShorterThanTwoCharacters() {
+        assertThrows(IllegalArgumentException.class,
+            () -> service.search("A", "BCT", LocalDate.now().plusDays(1)));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
     void rejectsPastJourneyDate() {
         assertThrows(IllegalArgumentException.class,
             () -> service.search("NDLS", "BCT", LocalDate.now().minusDays(1)));
