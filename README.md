@@ -8,8 +8,8 @@ RailReserve is an actively developed railway reservation platform using Java 21,
 - `backend/train-service` — station search API and RSA JWT verification.
 - `backend/booking-service` — seat availability, transactional seat holds, server-configured fares, idempotent booking requests, unpaid-hold cancellation and transactional outbox publishing to Kafka.
 - `backend/notification-service` — Kafka consumer with event-ID deduplication, durable inbox/job records, retry and dead-letter configuration. A real email/SMS provider adapter is not yet connected.
-- `frontend/web` — responsive glass dashboard with color combinations and font selection; train results remain illustrative.
-- `frontend/mobile` — Expo React Native starter with theme and text-size controls.
+- `frontend/web` — responsive glass dashboard with color/font selectors, live train search, registration/login, access-token refresh, seat holds and booking history. Pre-search cards are illustrative.
+- `frontend/mobile` — Expo React Native app with live search, registration/login, access-token refresh, seat holds, booking history, theme and text-size controls.
 - `infra` — local MySQL, Redis, Kafka Compose setup, Nginx API gateway, RSA key generation helper and non-root Java image.
 - `docs` — architecture, local setup, security gates and implementation roadmap.
 
