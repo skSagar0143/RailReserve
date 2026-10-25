@@ -1,0 +1,25 @@
+server:
+  port: ${SERVER_PORT:8082}
+spring:
+  application:
+    name: train-service
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/railreserve_train?serverTimezone=UTC}
+    username: ${DB_USERNAME:railreserve_app}
+    password: ${DB_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
