@@ -20,7 +20,18 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - run: mvn -B -ntp verify
+      - run: mvn -B -ntp clean verify
+      - name: Publish JaCoCo and Surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: railreserve-test-and-coverage-reports
+          path: |
+            **/target/site/jacoco/**
+            backend/coverage-report/target/site/jacoco-aggregate/**
+            **/target/surefire-reports/*.xml
+          if-no-files-found: warn
+          retention-days: 14
   web:
     runs-on: ubuntu-latest
     defaults:
