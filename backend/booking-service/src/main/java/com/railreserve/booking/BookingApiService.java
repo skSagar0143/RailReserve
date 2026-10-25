@@ -123,7 +123,7 @@ public class BookingApiService {
             "SELECT id, booking_reference, status, train_id, journey_date, total_amount, request_hash, created_at, hold_expires_at FROM bookings WHERE customer_id=? ORDER BY created_at DESC LIMIT 100",
             (rs, row) -> new ExistingBooking(uuidFromBytes(rs.getBytes("id")), rs.getString("booking_reference"),
                 rs.getString("status"), rs.getLong("train_id"), rs.getDate("journey_date").toLocalDate(),
-                rs.getBigDecimal("total_amount"), rs.getString("request_hash"), null), uuidBytes(customerId));
+                rs.getBigDecimal("total_amount"), rs.getString("request_hash"), holdExpiry(rs)), uuidBytes(customerId));
         return records.stream().map(b -> response(b.id(), b.reference(), b.status(), b.trainId(), b.journeyDate(),
             seatIdsFor(b.id()), b.totalAmount(), b.holdExpiresAt())).toList();
     }
