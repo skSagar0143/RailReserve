@@ -17,6 +17,9 @@ public class RefreshToken {
     @Column(name = "user_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID userId;
 
+    @Column(name = "family_id", nullable = false, columnDefinition = "BINARY(16)")
+    private UUID familyId;
+
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
 
@@ -31,13 +34,15 @@ public class RefreshToken {
 
     protected RefreshToken() {}
 
-    public RefreshToken(UUID userId, String tokenHash, Instant expiresAt) {
+    public RefreshToken(UUID userId, UUID familyId, String tokenHash, Instant expiresAt) {
         this.userId = userId;
+        this.familyId = familyId;
         this.tokenHash = tokenHash;
         this.expiresAt = expiresAt;
     }
 
     public UUID getUserId() { return userId; }
+    public UUID getFamilyId() { return familyId; }
     public String getTokenHash() { return tokenHash; }
     public Instant getExpiresAt() { return expiresAt; }
     public Instant getRevokedAt() { return revokedAt; }
