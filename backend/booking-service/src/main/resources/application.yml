@@ -34,6 +34,13 @@ railreserve:
     booking-topic-replication-factor: ${BOOKING_EVENTS_REPLICATION_FACTOR:1}
   outbox:
     poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
+  payment:
+    enabled: ${PAYMENT_ENABLED:false}
+    key-id: ${RAZORPAY_KEY_ID:}
+    key-secret: ${RAZORPAY_KEY_SECRET:}
+    webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}
+    callback-url: ${PAYMENT_CALLBACK_URL:http://localhost:5173/payment-result}
+    currency: ${PAYMENT_CURRENCY:INR}
 management:
   endpoints:
     web:
