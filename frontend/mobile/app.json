@@ -1,0 +1,1 @@
+{"expo":{"name":"RailReserve","slug":"railreserve","version":"1.0.0","orientation":"portrait","userInterfaceStyle":"automatic","splash":{"backgroundColor":"#081626"},"android":{"package":"com.railreserve.mobile"},"ios":{"bundleIdentifier":"com.railreserve.mobile"},"extra":{"apiBaseUrl":"http://localhost:8080"}}
