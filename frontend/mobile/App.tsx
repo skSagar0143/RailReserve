@@ -50,6 +50,33 @@ export default function App() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const colors = themes[theme];
 
+  async function authenticatedFetch(url: string, init: RequestInit = {}) {
+    const send = (token: string) => {
+      const headers = new Headers(init.headers);
+      headers.set('Authorization', 'Bearer ' + token);
+      return fetch(url, { ...init, headers });
+    };
+    const response = await send(accessToken);
+    if (response.status !== 401 || !refreshToken) return response;
+    try {
+      const refreshed = await fetch(apiBase + '/api/v1/auth/refresh', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken })
+      });
+      if (!refreshed.ok) throw new Error('Refresh token expired.');
+      const tokens = await refreshed.json() as Tokens;
+      setAccessToken(tokens.accessToken);
+      setRefreshToken(tokens.refreshToken);
+      setRole(tokens.role);
+      return await send(tokens.accessToken);
+    } catch {
+      setAccessToken('');
+      setRefreshToken('');
+      setRole('');
+      return response;
+    }
+  }
+
   async function searchTrains() {
     setLoading(true);
     setMessage('');
@@ -88,7 +115,7 @@ export default function App() {
     setLoading(true);
     setMessage('');
     try {
-      const response = await fetch(apiBase + '/api/v1/bookings/availability?trainId=' + train.trainId +
+      const response = await authenticatedFetch(apiBase + '/api/v1/bookings/availability?trainId=' + train.trainId +
         '&journeyDate=' + encodeURIComponent(date), { headers: { Authorization: 'Bearer ' + token } });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message || 'Could not load seat availability.');
@@ -150,7 +177,7 @@ export default function App() {
     setMessage('');
     try {
       const idempotencyKey = 'mobile-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 14);
-      const response = await fetch(apiBase + '/api/v1/bookings', {
+      const response = await authenticatedFetch(apiBase + '/api/v1/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken, 'Idempotency-Key': idempotencyKey },
         body: JSON.stringify({ trainId: selectedTrain.trainId, journeyDate: date, seatIds: selectedSeats })
@@ -170,7 +197,7 @@ export default function App() {
     if (!booking || !accessToken) return;
     setLoading(true);
     try {
-      const response = await fetch(apiBase + '/api/v1/bookings/' + booking.id + '/cancel', {
+      const response = await authenticatedFetch(apiBase + '/api/v1/bookings/' + booking.id + '/cancel', {
         method: 'POST', headers: { Authorization: 'Bearer ' + accessToken }
       });
       const body = await response.json();
@@ -191,7 +218,7 @@ export default function App() {
     setLoading(true);
     setMessage('');
     try {
-      const response = await fetch(apiBase + '/api/v1/bookings/mine', { headers: { Authorization: 'Bearer ' + accessToken } });
+      const response = await authenticatedFetch(apiBase + '/api/v1/bookings/mine', { headers: { Authorization: 'Bearer ' + accessToken } });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message || 'Could not load bookings.');
       setBookings(body as Booking[]);
