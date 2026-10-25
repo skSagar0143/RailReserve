@@ -206,8 +206,9 @@ public class BookingApiService {
 
     private void writeOutbox(UUID aggregateId, String eventType, Map<String, Object> payload) {
         try {
+            UUID eventId = UUID.fromString(String.valueOf(payload.getOrDefault("eventId", UUID.randomUUID().toString())));
             jdbc.update("INSERT INTO outbox_events(event_id, aggregate_type, aggregate_id, event_type, payload) VALUES(?,?,?,?,?)",
-                uuidBytes(UUID.randomUUID()), "Booking", aggregateId.toString(), eventType, objectMapper.writeValueAsString(payload));
+                uuidBytes(eventId), "Booking", aggregateId.toString(), eventType, objectMapper.writeValueAsString(payload));
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Could not serialize booking event.", e);
         }
