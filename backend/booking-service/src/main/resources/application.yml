@@ -19,7 +19,21 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+railreserve:
+  kafka:
+    booking-topic: ${BOOKING_EVENTS_TOPIC:railreserve.booking.events}
+    booking-topic-partitions: ${BOOKING_EVENTS_PARTITIONS:6}
+    booking-topic-replication-factor: ${BOOKING_EVENTS_REPLICATION_FACTOR:1}
+  outbox:
+    poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
 management:
   endpoints:
     web:
