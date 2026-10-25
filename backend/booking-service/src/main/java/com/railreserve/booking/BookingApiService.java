@@ -85,9 +85,9 @@ public class BookingApiService {
         UUID bookingId = UUID.randomUUID();
         String reference = "RR-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
         Instant holdExpiresAt = Instant.now().plusSeconds(HOLD_MINUTES * 60L);
-        jdbc.update("INSERT INTO bookings(id, booking_reference, customer_id, train_id, journey_date, status, idempotency_key, total_amount, request_hash) VALUES(?,?,?,?,?,?,?,?,?)",
+        jdbc.update("INSERT INTO bookings(id, booking_reference, customer_id, train_id, journey_date, status, idempotency_key, total_amount, request_hash, hold_expires_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
             uuidBytes(bookingId), reference, uuidBytes(customerId), request.trainId(), java.sql.Date.valueOf(request.journeyDate()),
-            "PENDING_PAYMENT", idempotencyKey, total, requestHash);
+            "PENDING_PAYMENT", idempotencyKey, total, requestHash, java.sql.Timestamp.from(holdExpiresAt));
 
         for (SeatRow seat : seats) {
             int updated = jdbc.update("UPDATE seat_inventory SET status='HELD', held_until=?, version=version+1 WHERE id=? AND status='AVAILABLE'",
@@ -120,7 +120,7 @@ public class BookingApiService {
     @Transactional(readOnly = true)
     public List<BookingDtos.BookingResponse> mine(UUID customerId) {
         List<ExistingBooking> records = jdbc.query(
-            "SELECT id, booking_reference, status, train_id, journey_date, total_amount, request_hash, created_at FROM bookings WHERE customer_id=? ORDER BY created_at DESC LIMIT 100",
+            "SELECT id, booking_reference, status, train_id, journey_date, total_amount, request_hash, created_at, hold_expires_at FROM bookings WHERE customer_id=? ORDER BY created_at DESC LIMIT 100",
             (rs, row) -> new ExistingBooking(uuidFromBytes(rs.getBytes("id")), rs.getString("booking_reference"),
                 rs.getString("status"), rs.getLong("train_id"), rs.getDate("journey_date").toLocalDate(),
                 rs.getBigDecimal("total_amount"), rs.getString("request_hash"), null), uuidBytes(customerId));
@@ -162,27 +162,27 @@ public class BookingApiService {
         Instant now = Instant.now();
         jdbc.update("UPDATE seat_inventory SET status='AVAILABLE', held_until=NULL, version=version+1 WHERE status='HELD' AND held_until<=?",
             java.sql.Timestamp.from(now));
-        jdbc.update("UPDATE bookings SET status='EXPIRED' WHERE status='PENDING_PAYMENT' AND created_at<=?",
-            java.sql.Timestamp.from(now.minusSeconds(HOLD_MINUTES * 60L)));
+        jdbc.update("UPDATE bookings SET status='EXPIRED' WHERE status='PENDING_PAYMENT' AND hold_expires_at<=?",
+            java.sql.Timestamp.from(now));
     }
 
     private ExistingBooking findByIdempotencyKey(UUID customerId, String key) {
         List<ExistingBooking> rows = jdbc.query(
-            "SELECT id, booking_reference, status, train_id, journey_date, total_amount, request_hash, created_at FROM bookings WHERE customer_id=? AND idempotency_key=? LIMIT 1 FOR UPDATE",
+            "SELECT id, booking_reference, status, train_id, journey_date, total_amount, request_hash, created_at, hold_expires_at FROM bookings WHERE customer_id=? AND idempotency_key=? LIMIT 1 FOR UPDATE",
             bookingMapper(), uuidBytes(customerId), key);
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
     private ExistingBooking findById(UUID id) {
         List<ExistingBooking> rows = jdbc.query(
-            "SELECT id, booking_reference, status, train_id, journey_date, total_amount, request_hash, created_at FROM bookings WHERE id=?",
+            "SELECT id, booking_reference, status, train_id, journey_date, total_amount, request_hash, created_at, hold_expires_at FROM bookings WHERE id=?",
             bookingMapper(), uuidBytes(id));
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
     private ExistingBooking findByIdForUpdate(UUID id) {
         List<ExistingBooking> rows = jdbc.query(
-            "SELECT id, booking_reference, status, train_id, journey_date, total_amount, request_hash, created_at FROM bookings WHERE id=? FOR UPDATE",
+            "SELECT id, booking_reference, status, train_id, journey_date, total_amount, request_hash, created_at, hold_expires_at FROM bookings WHERE id=? FOR UPDATE",
             bookingMapper(), uuidBytes(id));
         return rows.isEmpty() ? null : rows.getFirst();
     }
@@ -198,10 +198,15 @@ public class BookingApiService {
             (rs, row) -> rs.getLong(1), uuidBytes(bookingId));
     }
 
+    private static Instant holdExpiry(java.sql.ResultSet rs) throws java.sql.SQLException {
+        java.sql.Timestamp timestamp = rs.getTimestamp("hold_expires_at");
+        return timestamp == null ? null : timestamp.toInstant();
+    }
+
     private RowMapper<ExistingBooking> bookingMapper() {
         return (rs, row) -> new ExistingBooking(uuidFromBytes(rs.getBytes("id")), rs.getString("booking_reference"),
             rs.getString("status"), rs.getLong("train_id"), rs.getDate("journey_date").toLocalDate(),
-            rs.getBigDecimal("total_amount"), rs.getString("request_hash"), null);
+            rs.getBigDecimal("total_amount"), rs.getString("request_hash"), holdExpiry(rs));
     }
 
     private void writeOutbox(UUID aggregateId, String eventType, Map<String, Object> payload) {
