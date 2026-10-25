@@ -2,6 +2,7 @@ package com.railreserve.train;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -39,4 +40,20 @@ class StationServiceTest {
         assertEquals(0, stationService.search("   ").size());
         verify(stationRepository).searchActive(null);
     }
+    @Test
+    void rejectsOverlongSearchQueryBeforeRepositoryCall() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+            () -> stationService.search("x".repeat(81)));
+        verifyNoInteractions(stationRepository);
+    }
+
+    @Test
+    void allowsQueryAtMaximumLength() {
+        String query = "x".repeat(80);
+        when(stationRepository.searchActive(query)).thenReturn(List.of());
+
+        assertEquals(0, stationService.search(query).size());
+        verify(stationRepository).searchActive(query);
+    }
+
 }
