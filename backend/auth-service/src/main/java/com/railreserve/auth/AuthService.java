@@ -47,6 +47,7 @@ public class AuthService {
 
     @Transactional
     public AuthDtos.TokenResponse register(AuthDtos.RegisterRequest request) {
+        if (request == null) throw new IllegalArgumentException("Registration details are required.");
         String email = normalizeEmail(request.email());
         if (users.existsByEmailIgnoreCase(email)) {
             throw new AuthConflictException("An account with this email already exists.");
@@ -57,6 +58,7 @@ public class AuthService {
 
     @Transactional
     public AuthDtos.TokenResponse login(AuthDtos.LoginRequest request) {
+        if (request == null) throw new IllegalArgumentException("Login details are required.");
         AuthUser user = users.findByEmailIgnoreCase(normalizeEmail(request.email()))
             .orElseThrow(() -> new BadCredentialsException("Invalid email or password."));
         if (!user.isActive() || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
@@ -67,6 +69,9 @@ public class AuthService {
 
     @Transactional(noRollbackFor = BadCredentialsException.class)
     public AuthDtos.TokenResponse refresh(String rawToken) {
+        if (rawToken == null || rawToken.isBlank() || rawToken.length() > 512) {
+            throw new BadCredentialsException("Invalid refresh token.");
+        }
         String hash = sha256(rawToken);
         RefreshToken stored = refreshTokens.findByTokenHashForUpdate(hash)
             .orElseThrow(() -> new BadCredentialsException("Invalid refresh token."));
@@ -87,6 +92,7 @@ public class AuthService {
 
     @Transactional
     public void logout(String rawToken) {
+        if (rawToken == null || rawToken.isBlank() || rawToken.length() > 512) return;
         refreshTokens.findByTokenHashForUpdate(sha256(rawToken)).ifPresent(token -> refreshTokens.revokeFamily(token.getFamilyId(), Instant.now()));
     }
 
@@ -124,6 +130,9 @@ public class AuthService {
     }
 
     private static String normalizeEmail(String email) {
+        if (email == null || email.isBlank() || email.length() > 254) {
+            throw new IllegalArgumentException("A valid email address is required.");
+        }
         return email.trim().toLowerCase(Locale.ROOT);
     }
 
