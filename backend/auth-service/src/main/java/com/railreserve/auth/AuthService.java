@@ -62,10 +62,10 @@ public class AuthService {
         if (!user.isActive() || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BadCredentialsException("Invalid email or password.");
         }
-        return issueTokens(user, stored.getFamilyId());
+        return issueTokens(user, UUID.randomUUID());
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = BadCredentialsException.class)
     public AuthDtos.TokenResponse refresh(String rawToken) {
         String hash = sha256(rawToken);
         RefreshToken stored = refreshTokens.findByTokenHashForUpdate(hash)
@@ -82,7 +82,7 @@ public class AuthService {
         AuthUser user = users.findById(stored.getUserId())
             .filter(AuthUser::isActive)
             .orElseThrow(() -> new BadCredentialsException("Account is unavailable."));
-        return issueTokens(user);
+        return issueTokens(user, stored.getFamilyId());
     }
 
     @Transactional
