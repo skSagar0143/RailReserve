@@ -10,7 +10,7 @@ RailReserve is an actively developed railway reservation platform using Java 21,
 - `backend/notification-service` — Kafka consumer with event-ID deduplication, durable inbox/job records, retry and dead-letter configuration. A real email/SMS provider adapter is not yet connected.
 - `frontend/web` — responsive glass dashboard with color combinations and font selection; train results remain illustrative.
 - `frontend/mobile` — Expo React Native starter with theme and text-size controls.
-- `infra` — local MySQL, Redis, Kafka Compose setup, RSA key generation helper and non-root Java image.
+- `infra` — local MySQL, Redis, Kafka Compose setup, Nginx API gateway, RSA key generation helper and non-root Java image.
 - `docs` — architecture, local setup, security gates and implementation roadmap.
 
 ## Important correctness/security rules
