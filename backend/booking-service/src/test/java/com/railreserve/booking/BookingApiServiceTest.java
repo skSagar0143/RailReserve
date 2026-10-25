@@ -76,4 +76,29 @@ class BookingApiServiceTest {
         assertThrows(IllegalArgumentException.class, () -> service.create(java.util.UUID.randomUUID(), "idempotency-key-12345", request));
         verifyNoInteractions(jdbc);
     }
+    @Test
+    void rejectsInvalidAvailabilityQueryBeforeDatabaseWork() {
+        assertThrows(IllegalArgumentException.class, () -> service.availability(0, LocalDate.now().plusDays(1)));
+        assertThrows(IllegalArgumentException.class, () -> service.availability(1, null));
+        assertThrows(IllegalArgumentException.class, () -> service.availability(1, LocalDate.now().minusDays(1)));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsMissingCustomerIdentityForBookingHistoryBeforeDatabaseWork() {
+        assertThrows(IllegalArgumentException.class, () -> service.mine(null));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsMissingIdentitiesForBookingReadAndCancellationBeforeDatabaseWork() {
+        UUID bookingId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        assertThrows(IllegalArgumentException.class, () -> service.get(null, bookingId));
+        assertThrows(IllegalArgumentException.class, () -> service.get(customerId, null));
+        assertThrows(IllegalArgumentException.class, () -> service.cancel(null, bookingId));
+        assertThrows(IllegalArgumentException.class, () -> service.cancel(customerId, null));
+        verifyNoInteractions(jdbc);
+    }
+
 }
