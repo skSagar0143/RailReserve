@@ -12,7 +12,7 @@ The script writes private/public PEM files to `infra/secrets`, which is git-igno
 
 Run `docker compose --env-file .env -f infra/docker-compose.yml up --build` from repository root. Web: `cd frontend/web; npm install; npm run dev`. Mobile: `cd frontend/mobile; npm install; npm start`. Backend: `mvn -B verify` from repository root.
 
-Local infrastructure ports: MySQL 3306, Redis 6379, Kafka host listener 29092. Service ports: auth 8081, train 8082, booking 8083, notification 8084.
+Local infrastructure ports: MySQL 3306, Redis 6379, Kafka host listener 29092. Gateway: http://localhost:8080. Service ports (local debugging only): auth 8081, train 8082, booking 8083, notification 8084. Use the gateway for browser/client requests; it does not terminate TLS and must sit behind a TLS-capable load balancer or reverse proxy in production.
 
 Auth API:
 - `POST /api/v1/auth/register` — create a CUSTOMER account.
