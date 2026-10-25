@@ -19,6 +19,11 @@ services:
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in root .env}"]
     ports: ["127.0.0.1:6379:6379"]
     volumes: [redis_data:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:?Set REDIS_PASSWORD in root .env} ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
   kafka:
     image: apache/kafka:4.1.1
     restart: unless-stopped
@@ -37,7 +42,7 @@ services:
     ports: ["127.0.0.1:29092:29092"]
   auth-service:
     build:
-      context: .
+      context: ..
       dockerfile: infra/Dockerfile
       args:
         SERVICE_MODULE: auth-service
@@ -46,13 +51,19 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/railreserve_auth?serverTimezone=UTC
       DB_USERNAME: ${MYSQL_USER:-railreserve_app}
       DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in root .env}
+      RSA_PRIVATE_KEY_PATH: /run/secrets/railreserve-private.pem
+      RSA_PUBLIC_KEY_PATH: /run/secrets/railreserve-public.pem
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      JWT_REFRESH_TTL_SECONDS: ${JWT_REFRESH_TTL_SECONDS:-604800}
+    volumes:
+      - ./secrets:/run/secrets:ro
     depends_on:
       mysql:
         condition: service_healthy
     ports: ["127.0.0.1:8081:8081"]
   train-service:
     build:
-      context: .
+      context: ..
       dockerfile: infra/Dockerfile
       args:
         SERVICE_MODULE: train-service
@@ -65,13 +76,13 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in root .env}
     depends_on:
       mysql:
-        condition: service_started
+        condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     ports: ["127.0.0.1:8082:8082"]
   booking-service:
     build:
-      context: .
+      context: ..
       dockerfile: infra/Dockerfile
       args:
         SERVICE_MODULE: booking-service
@@ -85,15 +96,15 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
       mysql:
-        condition: service_started
+        condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
       kafka:
         condition: service_started
     ports: ["127.0.0.1:8083:8083"]
   notification-service:
     build:
-      context: .
+      context: ..
       dockerfile: infra/Dockerfile
       args:
         SERVICE_MODULE: notification-service
