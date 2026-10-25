@@ -24,6 +24,8 @@ spring:
   flyway:
     enabled: true
 security:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   jwt:
     private-key-path: ${RSA_PRIVATE_KEY_PATH:/run/secrets/railreserve-private.pem}
     public-key-path: ${RSA_PUBLIC_KEY_PATH:/run/secrets/railreserve-public.pem}
