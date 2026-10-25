@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 type Seat = { inventoryId: number; coachCode: string; seatNumber: string; fareAmount: number };
 type Booking = { id: string; bookingReference: string; status: string; trainId: number; journeyDate: string; seatIds: number[]; totalAmount: number; holdExpiresAt: string | null };
-type Props = { trainId: number; trainName: string; journeyDate: string; accessToken: string; onClose: () => void };
+type Props = { trainId: number; trainName: string; journeyDate: string; accessToken: string; apiFetch: (url: string, init?: RequestInit) => Promise<Response>; onClose: () => void };
 
-export default function BookingDialog({ trainId, trainName, journeyDate, accessToken, onClose }: Props) {
+export default function BookingDialog({ trainId, trainName, journeyDate, accessToken, apiFetch, onClose }: Props) {
   const [seats, setSeats] = useState<Seat[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -14,7 +14,7 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
 
   useEffect(() => {
     let active = true;
-    fetch(base + '/api/v1/bookings/availability?trainId=' + trainId + '&journeyDate=' + encodeURIComponent(journeyDate), {
+    apiFetch(base + '/api/v1/bookings/availability?trainId=' + trainId + '&journeyDate=' + encodeURIComponent(journeyDate), {
       headers: { Authorization: 'Bearer ' + accessToken }
     }).then(async response => {
       const body = await response.json();
@@ -22,7 +22,7 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
       if (active) setSeats(body as Seat[]);
     }).catch(e => { if (active) setError(e instanceof Error ? e.message : 'Could not load seat availability.'); });
     return () => { active = false; };
-  }, [base, trainId, journeyDate, accessToken]);
+  }, [base, trainId, journeyDate, accessToken, apiFetch]);
 
   const total = useMemo(() => seats.filter(s => selected.includes(s.inventoryId)).reduce((sum, seat) => sum + Number(seat.fareAmount), 0), [seats, selected]);
 
@@ -34,7 +34,7 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
     setError('');
     setLoading(true);
     try {
-      const response = await fetch(base + '/api/v1/bookings', {
+      const response = await apiFetch(base + '/api/v1/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken, 'Idempotency-Key': crypto.randomUUID() },
         body: JSON.stringify({ trainId, journeyDate, seatIds: selected })
@@ -54,7 +54,7 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(base + '/api/v1/bookings/' + booking.id + '/cancel', {
+      const response = await apiFetch(base + '/api/v1/bookings/' + booking.id + '/cancel', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + accessToken }
       });
