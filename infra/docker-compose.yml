@@ -51,6 +51,9 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/railreserve_auth?serverTimezone=UTC
       DB_USERNAME: ${MYSQL_USER:-railreserve_app}
       DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in root .env}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in root .env}
       RSA_PRIVATE_KEY_PATH: /run/secrets/railreserve-private.pem
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
       RSA_PUBLIC_KEY_PATH: /run/secrets/railreserve-public.pem
@@ -61,6 +64,8 @@ services:
       - ./secrets/railreserve-public.pem:/run/secrets/railreserve-public.pem:ro
     depends_on:
       mysql:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports: ["127.0.0.1:8081:8081"]
   train-service:
