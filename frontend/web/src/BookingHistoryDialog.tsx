@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 
 type Booking = { id: string; bookingReference: string; status: string; trainId: number; journeyDate: string; seatIds: number[]; totalAmount: number; holdExpiresAt: string | null };
-type Props = { accessToken: string; onClose: () => void };
+type Props = { accessToken: string; apiFetch: (url: string, init?: RequestInit) => Promise<Response>; onClose: () => void };
 
-export default function BookingHistoryDialog({ accessToken, onClose }: Props) {
+export default function BookingHistoryDialog({ accessToken, apiFetch, onClose }: Props) {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -13,7 +13,7 @@ export default function BookingHistoryDialog({ accessToken, onClose }: Props) {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(base + '/api/v1/bookings/mine', { headers: { Authorization: 'Bearer ' + accessToken } });
+      const response = await apiFetch(base + '/api/v1/bookings/mine', { headers: { Authorization: 'Bearer ' + accessToken } });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message || 'Could not load your bookings.');
       setBookings(body as Booking[]);
@@ -22,14 +22,14 @@ export default function BookingHistoryDialog({ accessToken, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [base, accessToken]);
+  }, [base, accessToken, apiFetch]);
 
   useEffect(() => { void load(); }, [load]);
 
   async function cancel(id: string) {
     setError('');
     try {
-      const response = await fetch(base + '/api/v1/bookings/' + id + '/cancel', {
+      const response = await apiFetch(base + '/api/v1/bookings/' + id + '/cancel', {
         method: 'POST', headers: { Authorization: 'Bearer ' + accessToken }
       });
       const body = await response.json();
