@@ -3,6 +3,7 @@ package com.railreserve.auth;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -14,6 +15,12 @@ public class ApiExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     public Map<String, String> conflict(AuthConflictException ex) {
         return Map.of("error", "conflict", "message", ex.getMessage());
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public Map<String, String> dataConflict() {
+        return Map.of("error", "conflict", "message", "The request conflicts with existing data.");
     }
 
     @ExceptionHandler(BadCredentialsException.class)
