@@ -7,7 +7,7 @@
 - [x] React glass dashboard with color and font selectors, and clearly labelled illustrative data.
 - [x] React Native Expo starter with theme and text-size controls.
 - [x] Local MySQL, Redis and Kafka Compose configuration, health checks, non-root Java image and ignored local secrets.
-- [x] Customer registration/login, BCrypt password hashing, RS256 JWT access tokens, issuer/audience/time validation, hashed refresh tokens, rotation, logout revocation and Redis-backed auth route limits.
+- [x] Customer registration/login, BCrypt password hashing, RS256 JWT access tokens, issuer/audience/time validation, hashed refresh tokens, rotation, logout revocation and Redis-backed auth route limits and refresh-token family reuse detection.
 - [x] RSA public-key JWT verification in train, booking and notification services; configurable CORS allow-list.
 - [x] Initial station search endpoint.
 - [x] Transactional booking API foundation with server-configured seat fares, row locking, 10-minute seat holds, idempotency keys, cancellation of unpaid holds and outbox event persistence.
@@ -19,7 +19,7 @@
 
 - [ ] Make CI fully green on the current commit; run migrations and the entire Compose stack locally.
 - [ ] Add payment provider integration, verified fare/route data, payment webhook signature validation, refund/reconciliation and expiry cleanup operations.
-- [ ] Add key-ID-aware RSA rotation/JWKS, account verification/recovery, refresh-token reuse detection, account/device management and stronger abuse controls.
+- [ ] Add key-ID-aware RSA rotation/JWKS, account verification/recovery, account/device management and stronger abuse controls.
 - [ ] Complete role/ownership tests, integration tests, Testcontainers, API contract tests and concurrent oversell/idempotency tests.
 - [ ] Complete train schedule/route APIs, admin-only train/seat/fare management, caching strategy and invalidation.
 - [ ] Add a real notification provider adapter, recipient resolution, delivery retries, provider idempotency and operator visibility for failed jobs.
