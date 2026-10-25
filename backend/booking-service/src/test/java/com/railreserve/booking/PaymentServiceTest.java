@@ -51,4 +51,59 @@ class PaymentServiceTest {
         assertThrows(IllegalStateException.class, () -> disabled.createCheckout(java.util.UUID.randomUUID(), java.util.UUID.randomUUID()));
         verifyNoInteractions(jdbc);
     }
+    @Test
+    void confirmsBookingOnlyAfterSignedWebhookMatchesAmountAndCurrency() throws Exception {
+        java.util.UUID bookingId = java.util.UUID.randomUUID();
+        java.util.UUID customerId = java.util.UUID.randomUUID();
+        java.util.UUID paymentId = java.util.UUID.randomUUID();
+        java.util.Map<String,Object> row = new java.util.HashMap<>();
+        row.put("id", uuidBytes(paymentId));
+        row.put("booking_id", uuidBytes(bookingId));
+        row.put("status", "CREATED");
+        row.put("amount", new java.math.BigDecimal("25.00"));
+        row.put("currency", "INR");
+        row.put("booking_status", "PENDING_PAYMENT");
+        row.put("booking_reference", "RR-TEST123");
+        row.put("customer_id", uuidBytes(customerId));
+        row.put("hold_expires_at", java.sql.Timestamp.from(java.time.Instant.now().plusSeconds(300)));
+        org.mockito.Mockito.doReturn(java.util.List.of(row)).when(jdbc).queryForList(
+            org.mockito.ArgumentMatchers.contains("FROM payments p JOIN bookings b"), org.mockito.ArgumentMatchers.eq("plink_test"));
+        String body = "{\"event\":\"payment_link.paid\",\"payload\":{\"payment_link\":{\"entity\":{\"id\":\"plink_test\",\"amount_paid\":2500,\"currency\":\"INR\"}},\"payment\":{\"entity\":{\"id\":\"pay_test\"}}}}";
+        service.handleWebhook(body, signature(body));
+        org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("UPDATE payments SET status='PAID'"), org.mockito.ArgumentMatchers.eq("pay_test"), org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("UPDATE bookings SET status='CONFIRMED'"), org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("INSERT INTO outbox_events"), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void doesNotConfirmBookingWhenSignedWebhookAmountDoesNotMatch() throws Exception {
+        java.util.UUID bookingId = java.util.UUID.randomUUID();
+        java.util.Map<String,Object> row = new java.util.HashMap<>();
+        row.put("id", uuidBytes(java.util.UUID.randomUUID()));
+        row.put("booking_id", uuidBytes(bookingId));
+        row.put("status", "CREATED");
+        row.put("amount", new java.math.BigDecimal("25.00"));
+        row.put("currency", "INR");
+        row.put("booking_status", "PENDING_PAYMENT");
+        row.put("booking_reference", "RR-TEST456");
+        row.put("customer_id", uuidBytes(java.util.UUID.randomUUID()));
+        row.put("hold_expires_at", java.sql.Timestamp.from(java.time.Instant.now().plusSeconds(300)));
+        org.mockito.Mockito.doReturn(java.util.List.of(row)).when(jdbc).queryForList(
+            org.mockito.ArgumentMatchers.contains("FROM payments p JOIN bookings b"), org.mockito.ArgumentMatchers.eq("plink_bad"));
+        String body = "{\"event\":\"payment_link.paid\",\"payload\":{\"payment_link\":{\"entity\":{\"id\":\"plink_bad\",\"amount_paid\":1000,\"currency\":\"INR\"}}}}";
+        service.handleWebhook(body, signature(body));
+        org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("status='REVIEW_REQUIRED'"), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.contains("UPDATE bookings SET status='CONFIRMED'"), org.mockito.ArgumentMatchers.any());
+    }
+
+    private static String signature(String body) throws Exception {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec("webhook-secret".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        return HexFormat.of().formatHex(mac.doFinal(body.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static byte[] uuidBytes(java.util.UUID uuid) {
+        return java.nio.ByteBuffer.allocate(16).putLong(uuid.getMostSignificantBits()).putLong(uuid.getLeastSignificantBits()).array();
+    }
+
 }
