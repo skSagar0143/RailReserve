@@ -1,0 +1,13 @@
+**/target/
+node_modules/
+dist/
+.expo/
+coverage/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.idea/
+.vscode/
+.DS_Store
