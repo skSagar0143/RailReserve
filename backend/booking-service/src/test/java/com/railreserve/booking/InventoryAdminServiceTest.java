@@ -69,4 +69,44 @@ class InventoryAdminServiceTest {
             () -> service.updateFare(99L, new BigDecimal("500.00"), "admin"));
         verifyNoMoreInteractions(jdbc);
     }
+    @Test
+    void rejectsNonPositiveInventoryIdBeforeDatabaseAccess() {
+        assertThrows(IllegalArgumentException.class,
+            () -> service.updateFare(0L, new BigDecimal("500.00"), "admin"));
+        assertThrows(IllegalArgumentException.class,
+            () -> service.updateFare(-1L, new BigDecimal("500.00"), "admin"));
+        verifyNoMoreInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsConcurrentSeatStateChangeAndDoesNotWriteAudit() {
+        when(jdbc.queryForList("SELECT status,fare_amount FROM seat_inventory WHERE id=? FOR UPDATE", 12L))
+            .thenReturn(List.of(Map.of("status", "AVAILABLE", "fare_amount", new BigDecimal("450.00"))));
+        when(jdbc.update(eq("UPDATE seat_inventory SET fare_amount=?,version=version+1 WHERE id=? AND status='AVAILABLE'"),
+            eq(new BigDecimal("500.00")), eq(12L))).thenReturn(0);
+
+        assertThrows(BookingConflictException.class,
+            () -> service.updateFare(12L, new BigDecimal("500.00"), "admin"));
+
+        verify(jdbc).update(
+            eq("UPDATE seat_inventory SET fare_amount=?,version=version+1 WHERE id=? AND status='AVAILABLE'"),
+            eq(new BigDecimal("500.00")), eq(12L));
+        verifyNoMoreInteractions(jdbc);
+    }
+
+    @Test
+    void normalizesOversizedAuditActorSafely() {
+        when(jdbc.queryForList("SELECT status,fare_amount FROM seat_inventory WHERE id=? FOR UPDATE", 12L))
+            .thenReturn(List.of(Map.of("status", "AVAILABLE", "fare_amount", new BigDecimal("450.00"))));
+        when(jdbc.update(eq("UPDATE seat_inventory SET fare_amount=?,version=version+1 WHERE id=? AND status='AVAILABLE'"),
+            eq(new BigDecimal("500.00")), eq(12L))).thenReturn(1);
+
+        service.updateFare(12L, new BigDecimal("500.00"), "x".repeat(140));
+
+        verify(jdbc).update(
+            eq("INSERT INTO admin_audit_events(actor,action,target_type,target_id,outcome,details) VALUES(?,?,?,?,?,?)"),
+            eq("x".repeat(128)), eq("INVENTORY_FARE_UPDATED"), eq("SEAT_INVENTORY"), eq("12"), eq("UPDATED"),
+            eq("Fare changed from 450.00 to 500.00"));
+    }
+
 }
