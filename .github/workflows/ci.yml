@@ -135,6 +135,11 @@ jobs:
           trap cleanup EXIT
           docker compose --env-file .env -f infra/docker-compose.yml up -d --build
           for attempt in $(seq 1 120); do
+            if [ -n "$(docker compose --env-file .env -f infra/docker-compose.yml ps --status exited -q)" ]; then
+              echo "A Compose service exited before health checks passed." >&2
+              docker compose --env-file .env -f infra/docker-compose.yml ps
+              exit 1
+            fi
             if curl --silent --fail http://localhost:8080/health/auth >/dev/null &&
                curl --silent --fail http://localhost:8080/health/train >/dev/null &&
                curl --silent --fail http://localhost:8080/health/booking >/dev/null &&
