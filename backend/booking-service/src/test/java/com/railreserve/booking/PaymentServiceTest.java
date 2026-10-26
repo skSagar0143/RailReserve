@@ -57,7 +57,7 @@ class PaymentServiceTest {
             org.mockito.ArgumentMatchers.eq("INSERT IGNORE INTO payment_webhook_events(event_id,event_type) VALUES(?,?)"),
             org.mockito.ArgumentMatchers.eq("evt_duplicate"), org.mockito.ArgumentMatchers.eq("payment_link.paid"));
         org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never()).queryForList(
-            org.mockito.ArgumentMatchers.contains("FROM payments p JOIN bookings b"), org.mockito.ArgumentMatchers.any());
+            org.mockito.ArgumentMatchers.contains("FROM payments p JOIN bookings b"), (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
         org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.times(1)).update(
             org.mockito.ArgumentMatchers.eq("INSERT IGNORE INTO payment_webhook_events(event_id,event_type) VALUES(?,?)"),
             org.mockito.ArgumentMatchers.eq("evt_duplicate"), org.mockito.ArgumentMatchers.eq("payment_link.paid"));
