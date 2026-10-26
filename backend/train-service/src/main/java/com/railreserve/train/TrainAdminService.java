@@ -90,6 +90,23 @@ public class TrainAdminService {
         invalidateCacheAfterCommit();
         return new TrainAdminDtos.CreatedResource(key.getKey().longValue(), "CREATED");
     }
+    @Transactional
+    public TrainAdminDtos.CreatedResource cancelServiceDate(long trainId, long serviceDateId, String actor) {
+        if (trainId <= 0 || serviceDateId <= 0) throw new IllegalArgumentException("Train and service-date IDs must be positive.");
+        int updated = jdbc.update(
+            "UPDATE train_service_calendar SET status='CANCELLED' WHERE id=? AND train_id=? AND service_date>=? AND status='SCHEDULED'",
+            serviceDateId, trainId, java.sql.Date.valueOf(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"))));
+        if (updated != 1) {
+            throw new TrainAdminConflictException("Service date was not found, is not scheduled, or is no longer cancellable.");
+        }
+        String safeActor = actor == null || actor.isBlank() ? "unknown" : actor.substring(0, Math.min(actor.length(), 128));
+        jdbc.update("INSERT INTO train_admin_audit_events(actor,action,target_type,target_id,outcome,details) VALUES(?,?,?,?,?,?)",
+            safeActor, "SERVICE_DATE_CANCELLED", "TRAIN_SERVICE_DATE", String.valueOf(serviceDateId), "CANCELLED",
+            "Cancelled scheduled service date for train " + trainId);
+        invalidateCacheAfterCommit();
+        return new TrainAdminDtos.CreatedResource(serviceDateId, "CANCELLED");
+    }
+
     private void invalidateCacheAfterCommit() {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {

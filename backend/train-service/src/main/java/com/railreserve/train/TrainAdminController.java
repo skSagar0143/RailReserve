@@ -1,6 +1,7 @@
 package com.railreserve.train;
 
 import jakarta.validation.Valid;
+import org.springframework.security.core.Authentication;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -35,5 +36,13 @@ public class TrainAdminController {
     public TrainAdminDtos.CreatedResource addServiceDate(@PathVariable @Positive long trainId,
         @Valid @RequestBody TrainAdminDtos.CreateServiceDateRequest request) {
         return service.addServiceDate(trainId, request);
+    }
+
+    @PostMapping("/trains/{trainId}/service-dates/{serviceDateId}/cancel")
+    public TrainAdminDtos.CreatedResource cancelServiceDate(
+            @PathVariable @Positive long trainId, @PathVariable @Positive long serviceDateId,
+            Authentication authentication) {
+        return service.cancelServiceDate(trainId, serviceDateId,
+            authentication == null ? "unknown" : authentication.getName());
     }
 }
