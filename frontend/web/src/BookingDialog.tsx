@@ -12,6 +12,7 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [payment, setPayment] = useState<Payment | null>(null);
+  const bookingAttemptKey = React.useRef<string | null>(null);
   const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
   const total = useMemo(() => seats.filter(s => selected.includes(s.inventoryId)).reduce((sum, seat) => sum + Number(seat.fareAmount), 0), [seats, selected]);
 
   function toggle(id: number) {
+    bookingAttemptKey.current = null;
     setSelected(current => current.includes(id) ? current.filter(x => x !== id) : current.length >= 6 ? current : [...current, id]);
   }
 
@@ -36,14 +38,16 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
     setError('');
     setLoading(true);
     try {
+      if (!bookingAttemptKey.current) bookingAttemptKey.current = crypto.randomUUID();
       const response = await apiFetch(base + '/api/v1/bookings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken, 'Idempotency-Key': crypto.randomUUID() },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken, 'Idempotency-Key': bookingAttemptKey.current! },
         body: JSON.stringify({ trainId, journeyDate, seatIds: selected })
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message || body.error || 'Booking request failed.');
       setBooking(body as Booking);
+      bookingAttemptKey.current = null;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Booking request failed. Please retry.');
     } finally {
@@ -91,6 +95,7 @@ export default function BookingDialog({ trainId, trainName, journeyDate, accessT
       setBooking(body as Booking);
       setSeats(current => current.filter(s => !booking.seatIds.includes(s.inventoryId)));
       setSelected([]);
+      bookingAttemptKey.current = null;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not cancel the hold.');
     } finally {
