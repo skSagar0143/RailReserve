@@ -11,4 +11,8 @@ public final class PaymentDtos {
     public record PaymentStatus(String bookingId, String bookingReference, String bookingStatus,
                                 String paymentStatus, String paymentLinkId, String checkoutUrl,
                                 BigDecimal amount, String currency, Instant paidAt) {}
+    public record ReconciliationItem(String paymentId, String bookingId, String bookingReference,
+                                     String customerId, String provider, String providerLinkId,
+                                     String providerPaymentId, String status, BigDecimal amount,
+                                     String currency, Instant createdAt, Instant updatedAt) {}
 }
