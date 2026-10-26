@@ -24,13 +24,14 @@ public class BookingEventConsumer {
     @KafkaListener(topics = "${railreserve.kafka.booking-topic:railreserve.booking.events}")
     @Transactional
     public void consume(ConsumerRecord<String, String> record) {
-        if (record.key() == null || record.value() == null) {
-            throw new IllegalArgumentException("Booking event must have an event ID key and JSON payload.");
+        if (record.key() == null || record.key().isBlank() || record.value() == null || record.value().isBlank()) {
+            throw new IllegalArgumentException("Booking event must have a non-blank event ID key and JSON payload.");
         }
         String eventType = header(record, "event_type");
         String aggregateType = header(record, "aggregate_type");
         String aggregateId = header(record, "aggregate_id");
-        if (eventType == null || aggregateType == null || aggregateId == null) {
+        if (eventType == null || eventType.isBlank() || aggregateType == null || aggregateType.isBlank()
+                || aggregateId == null || aggregateId.isBlank()) {
             throw new IllegalArgumentException("Booking event is missing required metadata headers.");
         }
         int inserted = jdbc.update(

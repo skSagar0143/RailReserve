@@ -54,6 +54,25 @@ class BookingEventConsumerTest {
         verifyNoInteractions(jdbc);
     }
 
+    @Test
+    void rejectsBlankEventKeyOrPayloadBeforeDatabaseWork() {
+        ConsumerRecord<String, String> blankKey = new ConsumerRecord<>("railreserve.booking.events", 0, 4L, " ", "{}");
+        ConsumerRecord<String, String> blankPayload = new ConsumerRecord<>("railreserve.booking.events", 0, 2L, "event-124", "  ");
+        assertThrows(IllegalArgumentException.class, () -> consumer.consume(blankKey));
+        assertThrows(IllegalArgumentException.class, () -> consumer.consume(blankPayload));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsBlankMetadataHeadersBeforeDatabaseWork() {
+        ConsumerRecord<String, String> record = new ConsumerRecord<>("railreserve.booking.events", 0, 3L, "event-125", "{}");
+        record.headers().add(new RecordHeader("event_type", "   ".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        record.headers().add(new RecordHeader("aggregate_type", "Booking".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        record.headers().add(new RecordHeader("aggregate_id", "booking-456".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertThrows(IllegalArgumentException.class, () -> consumer.consume(record));
+        verifyNoInteractions(jdbc);
+    }
+
     private static ConsumerRecord<String, String> validRecord() {
         ConsumerRecord<String, String> record = new ConsumerRecord<>("railreserve.booking.events", 0, 1L,
             "event-123", "{\"bookingId\":\"booking-456\"}");
