@@ -17,6 +17,13 @@
 - [x] Initial JUnit/Mockito tests and CI workflow for backend, web, mobile and infrastructure.
 - [x] JaCoCo per-module and aggregate HTML/XML coverage reporting, with test and coverage reports uploaded as a CI artifact.
 
+## Latest reliability fixes (2026-10-26)
+
+- [x] Fix mobile authenticated requests to honor an explicitly supplied fresh access token. This prevents the post-login seat-availability request from being overwritten by a stale empty token.
+- [x] Keep the same booking idempotency key when retrying the same web/mobile seat-hold request, and reset the key when the user changes the selection or starts a new search. This reduces duplicate holds after ambiguous network failures.
+- [x] Add refund regression tests for returning an existing refund intent and rejecting a payment that is not eligible for refund.
+- [ ] CI/CodeQL verification for these latest commits must finish successfully before these changes are considered verified.
+
 ## Still required before production
 
 - [x] CI backend verification, web build, mobile type-check, infrastructure validation and JaCoCo aggregation passed on commit `551fdd05e5f6cbd16d119218aeab6f813ed5edda`; CodeQL also passed on that commit.
