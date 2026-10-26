@@ -119,6 +119,29 @@ public class PaymentService {
             row.get("paid_at") instanceof java.sql.Timestamp t?t.toInstant():null);
     }
 
+    @Transactional(readOnly = true)
+    public List<PaymentDtos.ReconciliationItem> reconciliationQueue(int requestedLimit) {
+        int limit = Math.max(1, Math.min(requestedLimit, 100));
+        return jdbc.query(
+            "SELECT p.id,p.booking_id,b.booking_reference,b.customer_id,p.provider,p.provider_link_id,p.provider_payment_id,p.status,p.amount,p.currency,p.created_at,p.updated_at " +
+            "FROM payments p JOIN bookings b ON b.id=p.booking_id " +
+            "WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY') ORDER BY p.updated_at ASC LIMIT ?",
+            (rs, rowNum) -> new PaymentDtos.ReconciliationItem(
+                uuidFromBytes(rs.getBytes("id")).toString(),
+                uuidFromBytes(rs.getBytes("booking_id")).toString(),
+                rs.getString("booking_reference"),
+                uuidFromBytes(rs.getBytes("customer_id")).toString(),
+                rs.getString("provider"),
+                rs.getString("provider_link_id"),
+                rs.getString("provider_payment_id"),
+                rs.getString("status"),
+                rs.getBigDecimal("amount"),
+                rs.getString("currency"),
+                rs.getTimestamp("created_at").toInstant(),
+                rs.getTimestamp("updated_at").toInstant()),
+            limit);
+    }
+
     @Transactional
     public void handleWebhook(String rawBody, String signature) {
         if (webhookSecret.isBlank()) throw new IllegalStateException("Payment webhook secret is not configured.");
