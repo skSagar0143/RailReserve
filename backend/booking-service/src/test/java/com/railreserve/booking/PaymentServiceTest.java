@@ -210,12 +210,12 @@ class PaymentServiceTest {
     @Test
     void boundsReconciliationQueueLimitToSafeRange() {
         org.mockito.Mockito.doReturn(java.util.List.of()).when(jdbc).query(
-            org.mockito.ArgumentMatchers.contains("WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY')"),
+            org.mockito.ArgumentMatchers.contains("WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY','REFUND_REQUESTED','REFUND_REVIEW_REQUIRED','REFUND_PENDING')"),
             org.mockito.ArgumentMatchers.any(org.springframework.jdbc.core.RowMapper.class),
             org.mockito.ArgumentMatchers.eq(100));
         service.reconciliationQueue(10000);
         org.mockito.Mockito.verify(jdbc).query(
-            org.mockito.ArgumentMatchers.contains("WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY')"),
+            org.mockito.ArgumentMatchers.contains("WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY','REFUND_REQUESTED','REFUND_REVIEW_REQUIRED','REFUND_PENDING')"),
             org.mockito.ArgumentMatchers.any(org.springframework.jdbc.core.RowMapper.class),
             org.mockito.ArgumentMatchers.eq(100));
     }
@@ -223,12 +223,12 @@ class PaymentServiceTest {
     @Test
     void enforcesMinimumReconciliationQueueLimit() {
         org.mockito.Mockito.doReturn(java.util.List.of()).when(jdbc).query(
-            org.mockito.ArgumentMatchers.contains("WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY')"),
+            org.mockito.ArgumentMatchers.contains("WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY','REFUND_REQUESTED','REFUND_REVIEW_REQUIRED','REFUND_PENDING')"),
             org.mockito.ArgumentMatchers.any(org.springframework.jdbc.core.RowMapper.class),
             org.mockito.ArgumentMatchers.eq(1));
         service.reconciliationQueue(0);
         org.mockito.Mockito.verify(jdbc).query(
-            org.mockito.ArgumentMatchers.contains("WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY')"),
+            org.mockito.ArgumentMatchers.contains("WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY','REFUND_REQUESTED','REFUND_REVIEW_REQUIRED','REFUND_PENDING')"),
             org.mockito.ArgumentMatchers.any(org.springframework.jdbc.core.RowMapper.class),
             org.mockito.ArgumentMatchers.eq(1));
     }
