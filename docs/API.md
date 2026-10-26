@@ -83,12 +83,23 @@ Headers: `Authorization: Bearer <access-token>`, `Idempotency-Key: <unique-value
 {"trainId":1,"journeyDate":"2026-11-02","seatIds":[12,13]}
 ```
 
-The server locks inventory rows, verifies all seats belong to the requested train/date, computes the total from configured seat fares, marks seats HELD, stores the booking and outbox event in one database transaction. The current status is PENDING_PAYMENT because no payment provider is integrated yet. Unpaid holds expire automatically.
+The server locks inventory rows, verifies all seats belong to the requested train/date, computes the total from configured seat fares, marks seats HELD, stores the booking and outbox event in one database transaction. The booking remains PENDING_PAYMENT until the signed payment-provider webhook confirms payment. Unpaid holds expire automatically.
 
 ### Booking history/details/cancellation
 - `GET /api/v1/bookings/mine`
 - `GET /api/v1/bookings/{bookingId}`
 - `POST /api/v1/bookings/{bookingId}/cancel` — only pending-payment holds can be cancelled through this endpoint.
+
+## Payments (Razorpay hosted payment links)
+
+Payment checkout is disabled by default. Set `PAYMENT_ENABLED=true`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` using environment/secret management before testing. Use Razorpay test-mode credentials first.
+
+- `POST /api/v1/payments/bookings/{bookingId}/checkout` — authenticated booking owner only; creates or returns the existing checkout link for a valid, unexpired PENDING_PAYMENT booking.
+- `GET /api/v1/payments/bookings/{bookingId}` — authenticated booking owner only; returns booking/payment status.
+- `POST /api/v1/payments/webhook` — provider callback; requires the raw request body and `X-Razorpay-Signature`. When supplied, `X-Razorpay-Event-Id` is persisted to deduplicate provider redelivery. Configure Razorpay's `payment_link.paid` webhook to this endpoint.
+- `GET /api/v1/admin/payments/reconciliation?limit=50` — ADMIN only; lists payments requiring review because amount/currency mismatched or payment arrived after the seat hold expired. The limit is clamped to 1–100.
+
+A browser redirect is not proof of payment. Only a signature-verified webhook with the expected amount and currency confirms the booking and writes a BookingConfirmed outbox event. Mismatched or late payments are held for manual review; **automated refunds and reconciliation resolution are not implemented yet**. If Razorpay does not send the event ID header, provider-event-level deduplication is unavailable. Do not enable live payments until sandbox webhook delivery, refunds, recovery paths and integration tests have been verified.
 
 ## Event delivery
 
