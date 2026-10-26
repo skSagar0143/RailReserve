@@ -131,7 +131,7 @@ class PaymentServiceTest {
         org.mockito.Mockito.doReturn(java.util.List.of(row)).when(jdbc).queryForList(
             org.mockito.ArgumentMatchers.contains("FROM payments p JOIN bookings b"),
             org.mockito.ArgumentMatchers.eq("plink_late"));
-        String body = "{\\"event\\":\\"payment_link.paid\\",\\"payload\\":{\\"payment_link\\":{\\"entity\\":{\\"id\\":\\"plink_late\\",\\"amount_paid\\":2500,\\"currency\\":\\"INR\\"}},\\"payment\\":{\\"entity\\":{\\"id\\":\\"pay_late\\"}}}}";
+        String body = "{\"event\":\"payment_link.paid\",\"payload\":{\"payment_link\":{\"entity\":{\"id\":\"plink_late\",\"amount_paid\":2500,\"currency\":\"INR\"}},\"payment\":{\"entity\":{\"id\":\"pay_late\"}}}}";
 
         service.handleWebhook(body, signature(body));
 
@@ -162,7 +162,7 @@ class PaymentServiceTest {
         org.mockito.Mockito.doReturn(java.util.List.of(row)).when(jdbc).queryForList(
             org.mockito.ArgumentMatchers.contains("FROM payments p JOIN bookings b"),
             org.mockito.ArgumentMatchers.eq("plink_currency"));
-        String body = "{\\"event\\":\\"payment_link.paid\\",\\"payload\\":{\\"payment_link\\":{\\"entity\\":{\\"id\\":\\"plink_currency\\",\\"amount_paid\\":2500,\\"currency\\":\\"USD\\"}}}}";
+        String body = "{\"event\":\"payment_link.paid\",\"payload\":{\"payment_link\":{\"entity\":{\"id\":\"plink_currency\",\"amount_paid\":2500,\"currency\":\"USD\"}}}}";
 
         service.handleWebhook(body, signature(body));
 
