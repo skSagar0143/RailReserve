@@ -63,7 +63,12 @@ All admin endpoints require a JWT with the ADMIN role. Public registration canno
 - `POST /api/v1/admin/trains`: `{"trainNumber":"12951","name":"Mumbai Rajdhani Express"}`
 - `POST /api/v1/admin/trains/{trainId}/stops`: `{"stationId":1,"stopSequence":1,"arrivalTime":null,"departureTime":"16:25:00","dayOffset":0}`
 - `POST /api/v1/admin/trains/{trainId}/service-dates`: `{"serviceDate":"2026-11-02"}`
+- `POST /api/v1/admin/trains/{trainId}/service-dates/{serviceDateId}/cancel` — cancels only a currently scheduled service date that has not passed; the change is audited and search cache is invalidated after commit.
+- `PATCH /api/v1/admin/stations/{stationId}/status`: `{"active":false}` — activate/deactivate a station; status changes are audited.
+- `PATCH /api/v1/admin/trains/{trainId}/status`: `{"active":false}` — activate/deactivate a train; status changes are audited.
 - `POST /api/v1/admin/inventory`: `{"trainId":1,"journeyDate":"2026-11-02","coachCode":"A1","seatNumber":"01","fareAmount":2145.00}`
+- `PATCH /api/v1/admin/inventory/{inventoryId}/fare`: `{"fareAmount":2250.00}` — only available seats can be repriced; held/booked seats are protected and fare changes are audited.
+- `GET /api/v1/admin/audit-events?actor=admin%40example.test&action=INVENTORY_FARE_UPDATED&limit=50` — reads booking-service admin audit events; limit is clamped to 1–100 and actor/action filters are optional.
 
 A train's service date and its booking-service seat inventory must be configured consistently. Seat fares are server-side values; clients cannot submit a total price.
 
@@ -96,11 +101,11 @@ Payment checkout is disabled by default. Set `PAYMENT_ENABLED=true`, `RAZORPAY_K
 
 - `POST /api/v1/payments/bookings/{bookingId}/checkout` — authenticated booking owner only; creates or returns the existing checkout link for a valid, unexpired PENDING_PAYMENT booking.
 - `GET /api/v1/payments/bookings/{bookingId}` — authenticated booking owner only; returns booking/payment status.
-- `POST /api/v1/payments/webhook` — provider callback; requires the raw request body and `X-Razorpay-Signature`. When supplied, `X-Razorpay-Event-Id` is persisted to deduplicate provider redelivery. Configure Razorpay's `payment_link.paid` webhook to this endpoint.
+- `POST /api/v1/payments/webhook` — provider callback; requires the raw request body and `X-Razorpay-Signature`. When supplied, `X-Razorpay-Event-Id` is persisted to deduplicate provider redelivery; when absent, exact repeated request bodies are deduplicated by SHA-256 fingerprint, which is not a substitute for provider event identity. Configure Razorpay's `payment_link.paid` webhook to this endpoint.
 - `GET /api/v1/admin/payments/reconciliation?limit=50` — ADMIN only; lists amount/currency mismatches, payments arriving after the seat hold expires, and refund requests requiring reconciliation. The limit is clamped to 1–100.
 - `POST /api/v1/admin/payments/{paymentId}/refund` — ADMIN only; request body: `{"reason":"Seat hold expired before payment confirmation"}`. Requests a **full refund** through Razorpay only for captured payments flagged as paid-after-expiry or amount/currency mismatch, and records the refund intent before contacting the provider. Confirmed bookings must go through a cancellation workflow before a refund can be requested. The payment can have only one refund request in this implementation. A repeated request returns the stored result and is not submitted again.
 
-A browser redirect is not proof of payment. Only a signature-verified webhook with the expected amount and currency confirms the booking and writes a BookingConfirmed outbox event. Refund outcomes reported as processed or pending are recorded. If the provider call fails or returns an ambiguous outcome, the payment is moved to `REFUND_REVIEW_REQUIRED`; operators must check Razorpay before taking any further action. The application deliberately does not automatically resubmit uncertain refund calls, to avoid duplicate refunds. Refund requests, provider outcomes and uncertain outcomes are written to the booking database's admin audit event table. If Razorpay does not send the event ID header, provider-event-level deduplication is unavailable. Do not enable live payments until sandbox webhook delivery, refund behavior, recovery paths and integration tests have been verified.
+A browser redirect is not proof of payment. Only a signature-verified webhook with the expected amount and currency confirms the booking and writes a BookingConfirmed outbox event. Refund outcomes reported as processed or pending are recorded. If the provider call fails or returns an ambiguous outcome, the payment is moved to `REFUND_REVIEW_REQUIRED`; operators must check Razorpay before taking any further action. The application deliberately does not automatically resubmit uncertain refund calls, to avoid duplicate refunds. Refund requests, provider outcomes and uncertain outcomes are written to the booking database's admin audit event table. If Razorpay does not send the event ID header, exact-body retries are deduplicated by fingerprint, but provider-event-level deduplication for semantically identical events with different body bytes is not available. Do not enable live payments until sandbox webhook delivery, refund behavior, recovery paths and integration tests have been verified.
 
 ## Event delivery
 
