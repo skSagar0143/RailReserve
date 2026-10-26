@@ -107,6 +107,37 @@ public class TrainAdminService {
         return new TrainAdminDtos.CreatedResource(serviceDateId, "CANCELLED");
     }
 
+
+    @Transactional
+    public TrainAdminDtos.CreatedResource updateStationStatus(long stationId, boolean active, String actor) {
+        return updateActiveStatus("stations", "STATION_STATUS_UPDATED", "STATION", stationId, active, actor);
+    }
+
+    @Transactional
+    public TrainAdminDtos.CreatedResource updateTrainStatus(long trainId, boolean active, String actor) {
+        return updateActiveStatus("trains", "TRAIN_STATUS_UPDATED", "TRAIN", trainId, active, actor);
+    }
+
+    private TrainAdminDtos.CreatedResource updateActiveStatus(String table, String action, String targetType,
+            long id, boolean active, String actor) {
+        if (id <= 0) throw new IllegalArgumentException("Resource ID must be positive.");
+        // table/action/targetType are internal constants only, never request values.
+        var rows = jdbc.queryForList("SELECT active FROM " + table + " WHERE id=? FOR UPDATE", id);
+        if (rows.isEmpty()) throw new TrainAdminConflictException("The requested resource was not found.");
+        boolean current = Boolean.TRUE.equals(rows.getFirst().get("active"));
+        if (current == active) {
+            return new TrainAdminDtos.CreatedResource(id, active ? "ACTIVE" : "INACTIVE");
+        }
+        int updated = jdbc.update("UPDATE " + table + " SET active=? WHERE id=?", active, id);
+        if (updated != 1) throw new TrainAdminConflictException("The resource changed while updating its status; retry the request.");
+        String safeActor = actor == null || actor.isBlank() ? "unknown" : actor.substring(0, Math.min(actor.length(), 128));
+        jdbc.update("INSERT INTO train_admin_audit_events(actor,action,target_type,target_id,outcome,details) VALUES(?,?,?,?,?,?)",
+            safeActor, action, targetType, String.valueOf(id), active ? "ACTIVE" : "INACTIVE",
+            "Active flag changed from " + current + " to " + active);
+        invalidateCacheAfterCommit();
+        return new TrainAdminDtos.CreatedResource(id, active ? "ACTIVE" : "INACTIVE");
+    }
+
     private void invalidateCacheAfterCommit() {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {

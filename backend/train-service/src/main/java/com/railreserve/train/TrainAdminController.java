@@ -24,6 +24,23 @@ public class TrainAdminController {
         return service.createTrain(request);
     }
 
+
+    @PatchMapping("/stations/{stationId}/status")
+    public TrainAdminDtos.CreatedResource updateStationStatus(
+            @PathVariable @Positive long stationId, @Valid @RequestBody TrainAdminDtos.UpdateActiveRequest request,
+            Authentication authentication) {
+        return service.updateStationStatus(stationId, request.active(),
+            authentication == null ? "unknown" : authentication.getName());
+    }
+
+    @PatchMapping("/trains/{trainId}/status")
+    public TrainAdminDtos.CreatedResource updateTrainStatus(
+            @PathVariable @Positive long trainId, @Valid @RequestBody TrainAdminDtos.UpdateActiveRequest request,
+            Authentication authentication) {
+        return service.updateTrainStatus(trainId, request.active(),
+            authentication == null ? "unknown" : authentication.getName());
+    }
+
     @PostMapping("/trains/{trainId}/stops")
     @ResponseStatus(HttpStatus.CREATED)
     public TrainAdminDtos.CreatedResource addStop(@PathVariable @Positive long trainId,

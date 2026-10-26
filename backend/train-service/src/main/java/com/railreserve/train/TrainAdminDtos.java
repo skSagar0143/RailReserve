@@ -26,4 +26,5 @@ public final class TrainAdminDtos {
         @NotNull @Min(0) Integer dayOffset) {}
     public record CreateServiceDateRequest(@NotNull LocalDate serviceDate) {}
     public record CreatedResource(long id, String status) {}
+    public record UpdateActiveRequest(@NotNull Boolean active) {}
 }

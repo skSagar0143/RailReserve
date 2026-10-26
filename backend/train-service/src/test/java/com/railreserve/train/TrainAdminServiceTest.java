@@ -53,4 +53,39 @@ class TrainAdminServiceTest {
         assertThrows(IllegalArgumentException.class, () -> service.cancelServiceDate(10L, 0L, "admin"));
         verifyNoMoreInteractions(jdbc);
     }
+    @Test
+    void deactivatesTrainAndWritesAudit() {
+        when(jdbc.queryForList("SELECT active FROM trains WHERE id=? FOR UPDATE", 10L))
+            .thenReturn(java.util.List.of(java.util.Map.of("active", true)));
+        when(jdbc.update("UPDATE trains SET active=? WHERE id=?", false, 10L)).thenReturn(1);
+
+        var result = service.updateTrainStatus(10L, false, "admin@example.test");
+
+        assertEquals("INACTIVE", result.status());
+        verify(jdbc).update(
+            eq("INSERT INTO train_admin_audit_events(actor,action,target_type,target_id,outcome,details) VALUES(?,?,?,?,?,?)"),
+            eq("admin@example.test"), eq("TRAIN_STATUS_UPDATED"), eq("TRAIN"), eq("10"), eq("INACTIVE"),
+            eq("Active flag changed from true to false"));
+    }
+
+    @Test
+    void doesNotWriteAuditOrInvalidateCacheWhenStatusIsAlreadyRequestedValue() {
+        when(jdbc.queryForList("SELECT active FROM stations WHERE id=? FOR UPDATE", 4L))
+            .thenReturn(java.util.List.of(java.util.Map.of("active", true)));
+
+        var result = service.updateStationStatus(4L, true, "admin");
+
+        assertEquals("ACTIVE", result.status());
+        verifyNoMoreInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsStatusChangeForMissingResource() {
+        when(jdbc.queryForList("SELECT active FROM trains WHERE id=? FOR UPDATE", 10L))
+            .thenReturn(java.util.List.of());
+
+        assertThrows(TrainAdminConflictException.class, () -> service.updateTrainStatus(10L, false, "admin"));
+        verifyNoMoreInteractions(jdbc);
+    }
+
 }
