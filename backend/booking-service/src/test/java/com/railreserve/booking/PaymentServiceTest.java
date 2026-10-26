@@ -288,4 +288,64 @@ class PaymentServiceTest {
         verifyNoInteractions(jdbc);
     }
 
+
+    @Test
+    void checkoutRejectsBookingOwnedByAnotherCustomerBeforePaymentLookup() {
+        java.util.UUID bookingId = java.util.UUID.randomUUID();
+        java.util.UUID ownerId = java.util.UUID.randomUUID();
+        java.util.UUID callerId = java.util.UUID.randomUUID();
+        java.util.Map<String,Object> booking = new java.util.HashMap<>();
+        booking.put("booking_reference", "RR-OWNER123");
+        booking.put("status", "PENDING_PAYMENT");
+        booking.put("total_amount", new java.math.BigDecimal("25.00"));
+        booking.put("hold_expires_at", java.sql.Timestamp.from(java.time.Instant.now().plusSeconds(300)));
+        booking.put("customer_id", uuidBytes(ownerId));
+        org.mockito.Mockito.doReturn(java.util.List.of(booking)).when(jdbc).queryForList(
+            org.mockito.ArgumentMatchers.contains("SELECT booking_reference,status,total_amount,hold_expires_at,customer_id FROM bookings WHERE id=? FOR UPDATE"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+
+        assertThrows(AccessDeniedException.class, () -> service.createCheckout(callerId, bookingId));
+
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never()).queryForList(
+            org.mockito.ArgumentMatchers.contains("SELECT provider_link_id,payment_url,amount,currency,status FROM payments WHERE booking_id=?"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+    }
+
+    @Test
+    void checkoutRejectsExpiredSeatHoldBeforePaymentLookup() {
+        java.util.UUID bookingId = java.util.UUID.randomUUID();
+        java.util.UUID customerId = java.util.UUID.randomUUID();
+        java.util.Map<String,Object> booking = new java.util.HashMap<>();
+        booking.put("booking_reference", "RR-EXPIRED1");
+        booking.put("status", "PENDING_PAYMENT");
+        booking.put("total_amount", new java.math.BigDecimal("25.00"));
+        booking.put("hold_expires_at", java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(60)));
+        booking.put("customer_id", uuidBytes(customerId));
+        org.mockito.Mockito.doReturn(java.util.List.of(booking)).when(jdbc).queryForList(
+            org.mockito.ArgumentMatchers.contains("SELECT booking_reference,status,total_amount,hold_expires_at,customer_id FROM bookings WHERE id=? FOR UPDATE"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+
+        assertThrows(BookingConflictException.class, () -> service.createCheckout(customerId, bookingId));
+
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never()).queryForList(
+            org.mockito.ArgumentMatchers.contains("SELECT provider_link_id,payment_url,amount,currency,status FROM payments WHERE booking_id=?"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+    }
+
+    @Test
+    void paymentStatusRejectsBookingOwnedByAnotherCustomer() {
+        java.util.UUID bookingId = java.util.UUID.randomUUID();
+        java.util.UUID ownerId = java.util.UUID.randomUUID();
+        java.util.UUID callerId = java.util.UUID.randomUUID();
+        java.util.Map<String,Object> row = new java.util.HashMap<>();
+        row.put("booking_reference", "RR-OWNER456");
+        row.put("booking_status", "PENDING_PAYMENT");
+        row.put("customer_id", uuidBytes(ownerId));
+        org.mockito.Mockito.doReturn(java.util.List.of(row)).when(jdbc).queryForList(
+            org.mockito.ArgumentMatchers.contains("SELECT b.booking_reference,b.status AS booking_status,b.customer_id,b.total_amount,p.status AS payment_status"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+
+        assertThrows(AccessDeniedException.class, () -> service.status(callerId, bookingId));
+    }
+
 }
