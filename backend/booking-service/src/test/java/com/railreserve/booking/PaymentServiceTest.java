@@ -174,6 +174,21 @@ class PaymentServiceTest {
             (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
     }
 
+
+    @Test
+    void rejectsBlankRefundReasonBeforeDatabaseWork() {
+        assertThrows(IllegalArgumentException.class,
+            () -> service.prepareRefund(java.util.UUID.randomUUID(), "  ", "admin"));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsRefundReasonLongerThanProviderAuditLimitBeforeDatabaseWork() {
+        assertThrows(IllegalArgumentException.class,
+            () -> service.prepareRefund(java.util.UUID.randomUUID(), "x".repeat(501), "admin"));
+        verifyNoInteractions(jdbc);
+    }
+
     private static String signature(String body) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec("webhook-secret".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
