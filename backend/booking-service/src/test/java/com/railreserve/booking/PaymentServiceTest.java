@@ -175,6 +175,22 @@ class PaymentServiceTest {
     }
 
 
+
+    @Test
+    void rejectsRefundForUnknownPaymentWithoutCreatingRefundRecord() {
+        java.util.UUID paymentId = java.util.UUID.randomUUID();
+        org.mockito.Mockito.doReturn(java.util.List.of()).when(jdbc).queryForList(
+            org.mockito.ArgumentMatchers.contains("SELECT id,provider,provider_payment_id,status FROM payments WHERE id=? FOR UPDATE"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+
+        assertThrows(BookingConflictException.class,
+            () -> service.prepareRefund(paymentId, "Customer cancellation", "admin-user"));
+
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never()).update(
+            org.mockito.ArgumentMatchers.contains("INSERT INTO payment_refunds"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+    }
+
     @Test
     void rejectsBlankRefundReasonBeforeDatabaseWork() {
         assertThrows(IllegalArgumentException.class,
