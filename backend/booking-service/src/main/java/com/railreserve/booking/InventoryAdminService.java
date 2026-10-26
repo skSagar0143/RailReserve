@@ -32,4 +32,32 @@ public class InventoryAdminService {
         }, key);
         return new InventoryAdminDtos.CreatedSeat(key.getKey().longValue(), "AVAILABLE");
     }
+    @Transactional
+    public InventoryAdminDtos.FareUpdated updateFare(long inventoryId, java.math.BigDecimal newFare, String actor) {
+        if (inventoryId <= 0) throw new IllegalArgumentException("Inventory ID must be positive.");
+        if (newFare == null || newFare.signum() <= 0 || newFare.scale() > 2) {
+            throw new IllegalArgumentException("Fare must be positive and contain no more than two decimal places.");
+        }
+        var rows = jdbc.queryForList(
+            "SELECT status,fare_amount FROM seat_inventory WHERE id=? FOR UPDATE", inventoryId);
+        if (rows.isEmpty()) throw new BookingConflictException("Seat inventory was not found.");
+        var row = rows.getFirst();
+        String status = String.valueOf(row.get("status"));
+        if (!"AVAILABLE".equals(status)) {
+            throw new BookingConflictException("Fare can only be changed while a seat is AVAILABLE.");
+        }
+        java.math.BigDecimal previousFare = (java.math.BigDecimal) row.get("fare_amount");
+        int updated = jdbc.update(
+            "UPDATE seat_inventory SET fare_amount=?,version=version+1 WHERE id=? AND status='AVAILABLE'",
+            newFare, inventoryId);
+        if (updated != 1) throw new BookingConflictException("Seat inventory changed while updating the fare; retry the request.");
+        String safeActor = actor == null || actor.isBlank() ? "unknown" : actor.substring(0, Math.min(actor.length(), 128));
+        jdbc.update(
+            "INSERT INTO admin_audit_events(actor,action,target_type,target_id,outcome,details) VALUES(?,?,?,?,?,?)",
+            safeActor, "INVENTORY_FARE_UPDATED", "SEAT_INVENTORY", String.valueOf(inventoryId), "UPDATED",
+            "Fare changed from " + previousFare.toPlainString() + " to " + newFare.toPlainString());
+        return new InventoryAdminDtos.FareUpdated(inventoryId, previousFare, newFare, "UPDATED");
+    }
+
 }
+

@@ -18,4 +18,6 @@ public final class InventoryAdminDtos {
         @NotBlank @Size(max = 12) @Pattern(regexp = "[A-Za-z0-9-]+") String seatNumber,
         @NotNull @DecimalMin(value = "0.01") BigDecimal fareAmount) {}
     public record CreatedSeat(long inventoryId, String status) {}
+    public record UpdateFareRequest(@NotNull @DecimalMin(value = "0.01") BigDecimal fareAmount) {}
+    public record FareUpdated(long inventoryId, BigDecimal previousFare, BigDecimal currentFare, String status) {}
 }
