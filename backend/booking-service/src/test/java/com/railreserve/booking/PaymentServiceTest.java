@@ -264,4 +264,28 @@ class PaymentServiceTest {
             org.mockito.ArgumentMatchers.eq(1));
     }
 
+
+    @Test
+    void refusesCheckoutWhenAnyRequiredProviderCredentialIsMissing() {
+        PaymentService missingWebhook = new PaymentService(jdbc, new ObjectMapper(), "rzp_test_key", "key-secret",
+            "", "http://localhost:5173/payment-result", "INR", true);
+        assertThrows(IllegalStateException.class, () ->
+            missingWebhook.createCheckout(java.util.UUID.randomUUID(), java.util.UUID.randomUUID()));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsMissingIdentityForPaymentStatusBeforeDatabaseWork() {
+        assertThrows(IllegalArgumentException.class, () -> service.status(null, java.util.UUID.randomUUID()));
+        assertThrows(IllegalArgumentException.class, () -> service.status(java.util.UUID.randomUUID(), null));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsMissingIdentityForCheckoutBeforeDatabaseWork() {
+        assertThrows(IllegalArgumentException.class, () -> service.createCheckout(null, java.util.UUID.randomUUID()));
+        assertThrows(IllegalArgumentException.class, () -> service.createCheckout(java.util.UUID.randomUUID(), null));
+        verifyNoInteractions(jdbc);
+    }
+
 }
