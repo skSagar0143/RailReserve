@@ -179,8 +179,8 @@ public class PaymentService {
                 (String) refund.get("provider_refund_id"), ((java.sql.Timestamp) refund.get("created_at")).toInstant(), false);
         }
         String paymentStatus = String.valueOf(payment.get("status"));
-        if (!List.of("PAID", "PAID_AFTER_EXPIRY", "REVIEW_REQUIRED").contains(paymentStatus)) {
-            throw new BookingConflictException("Only paid or reconciliation-required payments can be refunded.");
+        if (!List.of("PAID_AFTER_EXPIRY", "REVIEW_REQUIRED").contains(paymentStatus)) {
+            throw new BookingConflictException("Only paid-after-expiry or amount/currency-review payments can be refunded through this reconciliation action. Confirmed bookings require the cancellation workflow first.");
         }
         UUID refundId = UUID.randomUUID();
         jdbc.update("INSERT INTO payment_refunds(id,payment_id,status,reason,requested_by) VALUES(?,?,?,?,?)",
@@ -194,7 +194,7 @@ public class PaymentService {
     public Map<String,Object> submitRefund(PreparedRefund refund) {
         Map<String,Object> request = Map.of("notes", Map.of(
             "railreserveRefundId", refund.refundId().toString(),
-            "reason", refund.reason()));
+            "reason", refund.reason().substring(0, Math.min(refund.reason().length(), 250))));
         Map response = restClient.post().uri("/payments/{paymentId}/refund", refund.providerPaymentId())
             .contentType(MediaType.APPLICATION_JSON)
             .headers(h -> h.setBasicAuth(keyId, keySecret))
