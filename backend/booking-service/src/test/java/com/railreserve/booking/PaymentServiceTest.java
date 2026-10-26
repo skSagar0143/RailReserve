@@ -205,6 +205,61 @@ class PaymentServiceTest {
         verifyNoInteractions(jdbc);
     }
 
+    @Test
+    void existingRefundRequestIsReturnedWithoutCreatingAnotherRefund() {
+        java.util.UUID paymentId = java.util.UUID.randomUUID();
+        java.util.UUID refundId = java.util.UUID.randomUUID();
+        java.util.Map<String,Object> payment = new java.util.HashMap<>();
+        payment.put("id", uuidBytes(paymentId));
+        payment.put("provider", "RAZORPAY");
+        payment.put("provider_payment_id", "pay_existing");
+        payment.put("status", "REFUND_REVIEW_REQUIRED");
+        java.util.Map<String,Object> refund = new java.util.HashMap<>();
+        refund.put("id", uuidBytes(refundId));
+        refund.put("status", "REFUND_REVIEW_REQUIRED");
+        refund.put("provider_refund_id", null);
+        refund.put("reason", "Customer request");
+        refund.put("created_at", java.sql.Timestamp.from(java.time.Instant.now()));
+        org.mockito.Mockito.doReturn(java.util.List.of(payment)).when(jdbc).queryForList(
+            org.mockito.ArgumentMatchers.contains("SELECT id,provider,provider_payment_id,status FROM payments WHERE id=? FOR UPDATE"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+        org.mockito.Mockito.doReturn(java.util.List.of(refund)).when(jdbc).queryForList(
+            org.mockito.ArgumentMatchers.contains("SELECT id,status,provider_refund_id,reason,created_at FROM payment_refunds WHERE payment_id=?"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+
+        PaymentService.PreparedRefund result = service.prepareRefund(paymentId, "A different retry reason", "admin");
+
+        org.junit.jupiter.api.Assertions.assertEquals(refundId, result.refundId());
+        org.junit.jupiter.api.Assertions.assertFalse(result.newlyCreated());
+        org.junit.jupiter.api.Assertions.assertEquals("REFUND_REVIEW_REQUIRED", result.status());
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never()).update(
+            org.mockito.ArgumentMatchers.contains("INSERT INTO payment_refunds"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+    }
+
+    @Test
+    void rejectsRefundForUnreviewedPaymentWithoutCreatingRefundIntent() {
+        java.util.UUID paymentId = java.util.UUID.randomUUID();
+        java.util.Map<String,Object> payment = new java.util.HashMap<>();
+        payment.put("id", uuidBytes(paymentId));
+        payment.put("provider", "RAZORPAY");
+        payment.put("provider_payment_id", "pay_paid");
+        payment.put("status", "PAID");
+        org.mockito.Mockito.doReturn(java.util.List.of(payment)).when(jdbc).queryForList(
+            org.mockito.ArgumentMatchers.contains("SELECT id,provider,provider_payment_id,status FROM payments WHERE id=? FOR UPDATE"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+        org.mockito.Mockito.doReturn(java.util.List.of()).when(jdbc).queryForList(
+            org.mockito.ArgumentMatchers.contains("SELECT id,status,provider_refund_id,reason,created_at FROM payment_refunds WHERE payment_id=?"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+
+        assertThrows(BookingConflictException.class,
+            () -> service.prepareRefund(paymentId, "Customer cancellation", "admin"));
+
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never()).update(
+            org.mockito.ArgumentMatchers.contains("INSERT INTO payment_refunds"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+    }
+
     private static String signature(String body) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec("webhook-secret".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
