@@ -20,22 +20,24 @@
 ## Still required before production
 
 - [x] CI backend verification, web build, mobile type-check, infrastructure validation and JaCoCo aggregation passed on commit `551fdd05e5f6cbd16d119218aeab6f813ed5edda`; CodeQL also passed on that commit.
-- [ ] Re-run CI after payment implementation and added boundary tests; run migrations and the entire Compose stack in an integration environment.
+- [x] Re-run CI after payment implementation: commit `23542e2ebbf3adb63449ae2e9b1e4029373419c7` passed backend Maven verification/JaCoCo, web build, mobile type-check, and infrastructure validation. Re-run again after the latest webhook deduplication commits; still required: migrations and the entire Compose stack in an integration environment.
 - [ ] Raise measured coverage substantially from the last verified aggregate baseline: instructions 13.65%, branches 21.74%, lines 18.12%, methods 15.50%, classes 22.58%.
 - [ ] Expand coverage to auth success/refresh/reuse, booking transaction and concurrency edge cases, Kafka outbox/inbox retry behavior, and API integration tests; set coverage thresholds after measuring a trustworthy baseline.
-- [x] Add Razorpay hosted payment-link checkout, owner-checked payment status, signed webhook verification, amount/currency matching, idempotent booking confirmation, and web/mobile checkout actions.
-- [ ] Complete automated refunds and payment reconciliation for paid-after-expiry/invalid amount cases; configure real provider credentials and validate sandbox webhook delivery end-to-end.
+- [x] Add Razorpay hosted payment-link checkout, owner-checked payment status, signed webhook verification, amount/currency matching, idempotent booking confirmation, web/mobile checkout actions, and provider event-ID deduplication when `X-Razorpay-Event-Id` is supplied.
+- [ ] Complete automated refunds and payment reconciliation actions for paid-after-expiry/invalid amount cases; configure real provider credentials and validate sandbox webhook delivery end-to-end. The current admin endpoint only lists cases for manual review; it does not issue refunds or resolve them.
 - [ ] Add key-ID-aware RSA rotation/JWKS, account verification/recovery, account/device management and stronger abuse controls.
 - [ ] Complete role/ownership tests, integration tests, Testcontainers, API contract tests and concurrent oversell/idempotency tests.
 - [x] ADMIN-only seat inventory and server-configured fare setup.
 - [ ] Add train/seat update and cancellation workflows, admin audit trails, and measure/tune cache hit rate and invalidation under load.
 - [ ] Add a real notification provider adapter, recipient resolution, delivery retries, provider idempotency and operator visibility for failed jobs.
 - [x] Connect web and mobile clients to live train search, registration/login, access-token refresh, seat holds and booking history; keep tokens in memory rather than localStorage.
-- [ ] Persist theme/font preferences, improve offline/retry UX, and add the actual payment checkout flow.
+- [ ] Persist theme/font preferences and improve offline/retry UX. Web/mobile payment checkout flow is implemented; end-to-end provider validation remains outstanding.
 - [ ] Add API gateway, OpenAPI, service identity, TLS and authenticated/encrypted Redis/Kafka, least-privilege DB accounts and managed production secrets.
 - [ ] Add structured audit logs, metrics/tracing/alerts, dependency/SBOM/secret/container scans, load tests, backup restore drills, disaster recovery and rollback/release rehearsal.
 - [ ] Perform independent threat modeling and security review; confirm applicable railway/payment/privacy requirements.
 
 Payment setup: set `PAYMENT_ENABLED=true`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `RAZORPAY_WEBHOOK_SECRET` in the deployment environment. Configure Razorpay to send the `payment_link.paid` event to `/api/v1/payments/webhook`. Start with test-mode credentials. The backend never trusts a browser redirect as proof of payment; only a signature-verified webhook with matching amount/currency confirms a booking. Payments received after the seat hold expires or with mismatched amount/currency are held for manual reconciliation and are not automatically refunded yet.
+
+Webhook deduplication migration `V5__payment_webhook_deduplication.sql` records provider event IDs so duplicate deliveries can be ignored when the gateway supplies the event ID header. If the header is absent, provider-event-level deduplication is not available.
 
 This is still an implementation in progress, not a production release. Do not deploy to real customers or process live payments until CI, sandbox webhook delivery, refund/reconciliation, integration tests, security review, and operational recovery have been completed.
