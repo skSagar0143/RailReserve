@@ -36,7 +36,7 @@ class PaymentServiceTest {
 
     @Test
     void recordsSignedUnrelatedEventsButDoesNotApplyPaymentSideEffects() throws Exception {
-        String body = "{\\"event\\":\\"payment_link.cancelled\\"}";
+        String body = "{\"event\":\"payment_link.cancelled\"}";
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec("webhook-secret".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
         String signature = HexFormat.of().formatHex(mac.doFinal(body.getBytes(StandardCharsets.UTF_8)));
@@ -70,7 +70,7 @@ class PaymentServiceTest {
 
     @Test
     void deduplicatesExactWebhookRetriesWhenProviderEventIdHeaderIsMissing() throws Exception {
-        String body = "{\\"event\\":\\"payment_link.paid\\"}";
+        String body = "{\"event\":\"payment_link.paid\"}";
         String fingerprint = "body-sha256-" + java.util.HexFormat.of().formatHex(
             java.security.MessageDigest.getInstance("SHA-256").digest(body.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         org.mockito.Mockito.doReturn(1, 0).when(jdbc).update(
@@ -89,7 +89,7 @@ class PaymentServiceTest {
 
     @Test
     void rejectsProviderWebhookEventIdLongerThanDatabaseColumn() throws Exception {
-        String body = "{\\"event\\":\\"payment_link.paid\\"}";
+        String body = "{\"event\":\"payment_link.paid\"}";
         assertThrows(IllegalArgumentException.class, () -> service.handleWebhook(body, signature(body), "e".repeat(129)));
         verifyNoInteractions(jdbc);
     }
