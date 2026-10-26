@@ -102,4 +102,19 @@ class BookingApiServiceTest {
         verifyNoInteractions(jdbc);
     }
 
+
+    @Test
+    void rejectsMissingCustomerIdentityBeforeDatabaseWork() {
+        var request = new BookingDtos.CreateBookingRequest(1L, LocalDate.now().plusDays(1), List.of(1L));
+        assertThrows(IllegalArgumentException.class, () -> service.create(null, "idempotency-key-12345", request));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsWhitespaceOnlyIdempotencyKeyBeforeDatabaseWork() {
+        var request = new BookingDtos.CreateBookingRequest(1L, LocalDate.now().plusDays(1), List.of(1L));
+        assertThrows(IllegalArgumentException.class, () -> service.create(UUID.randomUUID(), "                ", request));
+        verifyNoInteractions(jdbc);
+    }
+
 }
