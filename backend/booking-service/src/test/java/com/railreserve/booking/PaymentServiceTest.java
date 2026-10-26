@@ -184,4 +184,53 @@ class PaymentServiceTest {
         return java.nio.ByteBuffer.allocate(16).putLong(uuid.getMostSignificantBits()).putLong(uuid.getLeastSignificantBits()).array();
     }
 
+
+    @Test
+    void rejectsMalformedSignedWebhookPayloadWithoutDatabaseMutation() throws Exception {
+        String body = "{not-json";
+        assertThrows(IllegalArgumentException.class, () -> service.handleWebhook(body, signature(body)));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void ignoresSignedPaymentEventsWithoutPaymentLinkPayload() throws Exception {
+        String body = "{\\\"event\\\":\\\"payment_link.paid\\\",\\\"payload\\\":{}}";
+        service.handleWebhook(body, signature(body));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void rejectsWebhookWhenSecretIsNotConfiguredBeforeDatabaseWork() {
+        PaymentService unconfigured = new PaymentService(jdbc, new ObjectMapper(), "rzp_test_key", "key-secret",
+            "", "http://localhost:5173/payment-result", "INR", true);
+        assertThrows(IllegalStateException.class, () -> unconfigured.handleWebhook("{}", "00"));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void boundsReconciliationQueueLimitToSafeRange() {
+        org.mockito.Mockito.doReturn(java.util.List.of()).when(jdbc).query(
+            org.mockito.ArgumentMatchers.contains("WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY')"),
+            org.mockito.ArgumentMatchers.any(org.springframework.jdbc.core.RowMapper.class),
+            org.mockito.ArgumentMatchers.eq(100));
+        service.reconciliationQueue(10000);
+        org.mockito.Mockito.verify(jdbc).query(
+            org.mockito.ArgumentMatchers.contains("WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY')"),
+            org.mockito.ArgumentMatchers.any(org.springframework.jdbc.core.RowMapper.class),
+            org.mockito.ArgumentMatchers.eq(100));
+    }
+
+    @Test
+    void enforcesMinimumReconciliationQueueLimit() {
+        org.mockito.Mockito.doReturn(java.util.List.of()).when(jdbc).query(
+            org.mockito.ArgumentMatchers.contains("WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY')"),
+            org.mockito.ArgumentMatchers.any(org.springframework.jdbc.core.RowMapper.class),
+            org.mockito.ArgumentMatchers.eq(1));
+        service.reconciliationQueue(0);
+        org.mockito.Mockito.verify(jdbc).query(
+            org.mockito.ArgumentMatchers.contains("WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY')"),
+            org.mockito.ArgumentMatchers.any(org.springframework.jdbc.core.RowMapper.class),
+            org.mockito.ArgumentMatchers.eq(1));
+    }
+
 }
