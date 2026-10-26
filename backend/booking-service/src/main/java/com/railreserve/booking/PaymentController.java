@@ -26,8 +26,9 @@ public class PaymentController {
 
     @PostMapping("/webhook")
     @ResponseStatus(HttpStatus.OK)
-    public Map<String,String> webhook(@RequestBody String rawBody,@RequestHeader(value="X-Razorpay-Signature",required=false) String signature) {
-        payments.handleWebhook(rawBody,signature);
+    public Map<String,String> webhook(@RequestBody String rawBody,@RequestHeader(value="X-Razorpay-Signature",required=false) String signature,
+            @RequestHeader(value="X-Razorpay-Event-Id",required=false) String eventId) {
+        payments.handleWebhook(rawBody,signature,eventId);
         return Map.of("status","accepted");
     }
 }
