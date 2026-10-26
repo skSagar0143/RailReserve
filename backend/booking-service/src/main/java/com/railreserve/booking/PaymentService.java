@@ -186,6 +186,7 @@ public class PaymentService {
         jdbc.update("INSERT INTO payment_refunds(id,payment_id,status,reason,requested_by) VALUES(?,?,?,?,?)",
             uuidBytes(refundId), uuidBytes(paymentId), "REQUESTED", reason.trim(), actor);
         jdbc.update("UPDATE payments SET status='REFUND_REQUESTED' WHERE id=?", uuidBytes(paymentId));
+        auditRefund(refundId, paymentId, "PAYMENT_REFUND_REQUESTED", "REQUESTED", reason.trim());
         return new PreparedRefund(refundId, paymentId, providerPaymentId, reason.trim(), "REQUESTED", null, Instant.now(), true);
     }
 
@@ -214,6 +215,7 @@ public class PaymentService {
         jdbc.update("UPDATE payment_refunds SET provider_refund_id=?,status=? WHERE id=?",
             providerRefundId, status, uuidBytes(refund.refundId()));
         jdbc.update("UPDATE payments SET status=? WHERE id=?", status, uuidBytes(refund.paymentId()));
+        auditRefund(refund.refundId(), refund.paymentId(), "PAYMENT_REFUND_RESULT", status, providerRefundId);
         return new PaymentDtos.RefundResponse(refund.refundId().toString(), refund.paymentId().toString(), status,
             providerRefundId, refundMessage(status), refund.createdAt());
     }
@@ -224,6 +226,8 @@ public class PaymentService {
             uuidBytes(refund.refundId()));
         jdbc.update("UPDATE payments SET status='REFUND_REVIEW_REQUIRED' WHERE id=? AND status='REFUND_REQUESTED'",
             uuidBytes(refund.paymentId()));
+        auditRefund(refund.refundId(), refund.paymentId(), "PAYMENT_REFUND_UNCERTAIN", "REFUND_REVIEW_REQUIRED",
+            "Provider outcome uncertain; manual reconciliation required.");
         return new PaymentDtos.RefundResponse(refund.refundId().toString(), refund.paymentId().toString(),
             "REFUND_REVIEW_REQUIRED", null,
             "The provider outcome is uncertain. Check the Razorpay dashboard before taking any further action; this request will not be resubmitted automatically.",
@@ -233,6 +237,15 @@ public class PaymentService {
     public PaymentDtos.RefundResponse refundResponse(PreparedRefund refund) {
         return new PaymentDtos.RefundResponse(refund.refundId().toString(), refund.paymentId().toString(),
             refund.status(), refund.providerRefundId(), refundMessage(refund.status()), refund.createdAt());
+    }
+
+
+    private void auditRefund(UUID refundId, UUID paymentId, String action, String outcome, String details) {
+        List<Map<String,Object>> rows = jdbc.queryForList(
+            "SELECT requested_by FROM payment_refunds WHERE id=?", uuidBytes(refundId));
+        String actor = rows.isEmpty() ? "unknown" : String.valueOf(rows.getFirst().get("requested_by"));
+        jdbc.update("INSERT INTO admin_audit_events(actor,action,target_type,target_id,outcome,details) VALUES(?,?,?,?,?,?)",
+            actor, action, "PAYMENT", paymentId.toString(), outcome, details);
     }
 
     private static String refundMessage(String status) {
