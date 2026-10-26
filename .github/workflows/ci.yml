@@ -114,7 +114,7 @@ jobs:
       - name: Prepare isolated smoke-test secrets
         run: |
           mkdir -p infra/secrets
-          openssl genpkey -algorithm RSA -out infra/secrets/railreserve-private.pem -pkeyopt rsa_keygen_bits:2048
+          openssl genpkey -algorithm RSA -out infra/secrets/railreserve-private.pem -pkeyopt rsa_keygen_bits:3072
           openssl pkey -in infra/secrets/railreserve-private.pem -pubout -out infra/secrets/railreserve-public.pem
           # This key is disposable and exists only inside the ephemeral CI runner.
           # The non-root container user must be able to read the mounted test key.
