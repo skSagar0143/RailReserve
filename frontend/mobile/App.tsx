@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator, Linking, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text,
   TextInput, TouchableOpacity, View
@@ -50,15 +50,22 @@ export default function App() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const bookingAttemptKey = useRef<string | null>(null);
   const colors = themes[theme];
 
   async function authenticatedFetch(url: string, init: RequestInit = {}) {
+    const headers = new Headers(init.headers);
+    const suppliedAuthorization = headers.get('Authorization');
+    const suppliedToken = suppliedAuthorization?.startsWith('Bearer ')
+      ? suppliedAuthorization.slice(7)
+      : '';
+    const initialToken = suppliedToken || accessToken;
     const send = (token: string) => {
-      const headers = new Headers(init.headers);
-      headers.set('Authorization', 'Bearer ' + token);
-      return fetch(url, { ...init, headers });
+      const requestHeaders = new Headers(init.headers);
+      requestHeaders.set('Authorization', 'Bearer ' + token);
+      return fetch(url, { ...init, headers: requestHeaders });
     };
-    const response = await send(accessToken);
+    const response = await send(initialToken);
     if (response.status !== 401 || !refreshToken) return response;
     try {
       const refreshed = await fetch(apiBase + '/api/v1/auth/refresh', {
@@ -85,6 +92,7 @@ export default function App() {
     setSelectedTrain(null);
     setSeats([]);
     setBooking(null);
+    bookingAttemptKey.current = null;
     try {
       const url = apiBase + '/api/v1/trains/search?from=' + encodeURIComponent(from) +
         '&to=' + encodeURIComponent(to) + '&date=' + encodeURIComponent(date);
@@ -105,6 +113,7 @@ export default function App() {
     setSelectedTrain(train);
     setBooking(null);
     setSelectedSeats([]);
+    bookingAttemptKey.current = null;
     if (!accessToken) {
       setShowAuth(true);
       setMessage('Sign in to view available seats and create a booking hold.');
@@ -169,6 +178,7 @@ export default function App() {
   }
 
   function toggleSeat(id: number) {
+    bookingAttemptKey.current = null;
     setSelectedSeats(current => current.includes(id) ? current.filter(x => x !== id) :
       current.length < 6 ? [...current, id] : current);
   }
@@ -178,15 +188,18 @@ export default function App() {
     setLoading(true);
     setMessage('');
     try {
-      const idempotencyKey = 'mobile-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 14);
+      if (!bookingAttemptKey.current) {
+        bookingAttemptKey.current = 'mobile-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 14);
+      }
       const response = await authenticatedFetch(apiBase + '/api/v1/bookings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken, 'Idempotency-Key': idempotencyKey },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + accessToken, 'Idempotency-Key': bookingAttemptKey.current },
         body: JSON.stringify({ trainId: selectedTrain.trainId, journeyDate: date, seatIds: selectedSeats })
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message || body.error || 'Booking request failed.');
       setBooking(body as Booking);
+      bookingAttemptKey.current = null;
       setPaymentStatus(null);
       setMessage('Seat hold created. Continue to secure checkout to confirm your booking.');
     } catch (error) {
