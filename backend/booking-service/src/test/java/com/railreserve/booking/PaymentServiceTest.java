@@ -115,6 +115,37 @@ class PaymentServiceTest {
         org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.contains("UPDATE bookings SET status='CONFIRMED'"), (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
     }
 
+    @Test
+    void marksPaymentAfterExpiredSeatHoldForReviewInsteadOfConfirmingBooking() throws Exception {
+        java.util.UUID bookingId = java.util.UUID.randomUUID();
+        java.util.Map<String,Object> row = new java.util.HashMap<>();
+        row.put("id", uuidBytes(java.util.UUID.randomUUID()));
+        row.put("booking_id", uuidBytes(bookingId));
+        row.put("status", "CREATED");
+        row.put("amount", new java.math.BigDecimal("25.00"));
+        row.put("currency", "INR");
+        row.put("booking_status", "EXPIRED");
+        row.put("booking_reference", "RR-LATE123");
+        row.put("customer_id", uuidBytes(java.util.UUID.randomUUID()));
+        row.put("hold_expires_at", java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(60)));
+        org.mockito.Mockito.doReturn(java.util.List.of(row)).when(jdbc).queryForList(
+            org.mockito.ArgumentMatchers.contains("FROM payments p JOIN bookings b"),
+            org.mockito.ArgumentMatchers.eq("plink_late"));
+        String body = "{\\"event\\":\\"payment_link.paid\\",\\"payload\\":{\\"payment_link\\":{\\"entity\\":{\\"id\\":\\"plink_late\\",\\"amount_paid\\":2500,\\"currency\\":\\"INR\\"}},\\"payment\\":{\\"entity\\":{\\"id\\":\\"pay_late\\"}}}}";
+
+        service.handleWebhook(body, signature(body));
+
+        org.mockito.Mockito.verify(jdbc).update(
+            org.mockito.ArgumentMatchers.contains("status='PAID_AFTER_EXPIRY'"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never()).update(
+            org.mockito.ArgumentMatchers.contains("UPDATE bookings SET status='CONFIRMED'"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never()).update(
+            org.mockito.ArgumentMatchers.contains("INSERT INTO outbox_events"),
+            (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+    }
+
     private static String signature(String body) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec("webhook-secret".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
