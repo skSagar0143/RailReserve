@@ -46,7 +46,7 @@ class PaymentServiceTest {
 
     @Test
     void ignoresDuplicateProviderEventIdBeforeApplyingPaymentSideEffects() throws Exception {
-        String body = "{\\"event\\":\\"payment_link.paid\\"}";
+        String body = "{\"event\":\"payment_link.paid\"}";
         org.mockito.Mockito.doReturn(0).when(jdbc).update(
             org.mockito.ArgumentMatchers.eq("INSERT IGNORE INTO payment_webhook_events(event_id,event_type) VALUES(?,?)"),
             org.mockito.ArgumentMatchers.eq("evt_duplicate"), org.mockito.ArgumentMatchers.eq("payment_link.paid"));
