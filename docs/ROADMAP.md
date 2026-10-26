@@ -23,7 +23,7 @@
 - [x] Keep the same booking idempotency key when retrying the same web/mobile seat-hold request, and reset the key when the user changes the selection or starts a new search. This reduces duplicate holds after ambiguous network failures.
 - [x] Deduplicate exact payment-webhook body retries even when the provider event-ID header is absent, using a SHA-256 body fingerprint; provider event IDs remain preferred when supplied.
 - [x] Add refund regression tests for returning an existing refund intent and rejecting a payment that is not eligible for refund.
-- [ ] CI/CodeQL verification for the latest webhook-fingerprint and regression-test change must finish successfully before this change is considered verified.
+- [x] CI verification for webhook-fingerprint changes, fare updates, train service-date cancellation, and train/station status controls passed on commits `8edd6254419a6f722789da9228ca05409de48a21`, `7af7b94fab5ad479d8db176a5f1e41a4ff4db77c`, and `813e65d67be29db9756ab0d422143d154188ab63`. CodeQL for the latest status-control commit was still running at the last check.
 
 ## Still required before production
 
@@ -42,6 +42,7 @@
 - [x] Add a guarded admin fare-update endpoint: only AVAILABLE seats can be repriced, the row is locked during the update, fare precision is validated, and the mutation is recorded in the admin audit log. This does not permit repricing held/booked seats.
 - [x] Add a guarded train service-date cancellation workflow: only future/current SCHEDULED service dates can be cancelled; the action is audited and the train-search cache version is invalidated after commit.
 - [x] Add admin station/train activation controls; changes are audited and invalidate the train-search cache after commit.
+- [x] Add a paginated (maximum 100 records) admin audit-event query with actor/action filters so operators can inspect recorded booking-service administrative changes.
 - [ ] Complete remaining train/seat update workflows, audit trails for all administrative mutations, and measure/tune cache hit rate and invalidation under load.
 - [ ] Add a real notification provider adapter, recipient resolution, delivery retries, provider idempotency and operator visibility for failed jobs.
 - [x] Connect web and mobile clients to live train search, registration/login, access-token refresh, seat holds and booking history; keep tokens in memory rather than localStorage.
