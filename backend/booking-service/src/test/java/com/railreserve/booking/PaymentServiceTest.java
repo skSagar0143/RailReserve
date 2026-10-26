@@ -72,7 +72,7 @@ class PaymentServiceTest {
         service.handleWebhook(body, signature(body));
         org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("UPDATE payments SET status='PAID'"), (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
         org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("UPDATE bookings SET status='CONFIRMED'"), (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
-        org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("INSERT INTO outbox_events"), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(jdbc).update(org.mockito.ArgumentMatchers.contains("INSERT INTO outbox_events"), (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
     }
 
     @Test
