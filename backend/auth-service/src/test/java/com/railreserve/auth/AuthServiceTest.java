@@ -19,12 +19,14 @@ class AuthServiceTest {
     private AuthUserRepository users;
     private RefreshTokenRepository refreshTokens;
     private AuthService service;
+    private JwtEncoder jwtEncoder;
 
     @BeforeEach
     void setUp() {
         users = mock(AuthUserRepository.class);
         refreshTokens = mock(RefreshTokenRepository.class);
-        service = new AuthService(users, refreshTokens, new BCryptPasswordEncoder(12), mock(JwtEncoder.class), 900, 604800);
+        jwtEncoder = mock(JwtEncoder.class);
+        service = new AuthService(users, refreshTokens, new BCryptPasswordEncoder(12), jwtEncoder, 900, 604800);
     }
 
     @Test
@@ -105,6 +107,70 @@ class AuthServiceTest {
         assertThrows(IllegalArgumentException.class, () -> service.register(
             new AuthDtos.RegisterRequest(null, "LongSecurePassword123!", "Person")));
         verifyNoInteractions(users, refreshTokens);
+    }
+
+    @Test
+    void refreshRotatesTokenWithinTheSameFamilyForAnActiveUser() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID familyId = UUID.randomUUID();
+        String rawToken = "valid-refresh-token";
+        String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+            .digest(rawToken.getBytes(StandardCharsets.UTF_8)));
+        RefreshToken stored = new RefreshToken(userId, familyId, hash, Instant.now().plusSeconds(600));
+        AuthUser user = mock(AuthUser.class);
+        org.springframework.security.oauth2.jwt.Jwt accessJwt = mock(org.springframework.security.oauth2.jwt.Jwt.class);
+        when(refreshTokens.findByTokenHashForUpdate(hash)).thenReturn(Optional.of(stored));
+        when(users.findById(userId)).thenReturn(Optional.of(user));
+        when(user.isActive()).thenReturn(true);
+        when(user.getId()).thenReturn(userId);
+        when(user.getEmail()).thenReturn("person@example.com");
+        when(user.getRole()).thenReturn("CUSTOMER");
+        when(accessJwt.getTokenValue()).thenReturn("new-access-token");
+        when(jwtEncoder.encode(any(org.springframework.security.oauth2.jwt.JwtEncoderParameters.class))).thenReturn(accessJwt);
+
+        AuthDtos.TokenResponse result = service.refresh(rawToken);
+
+        assertEquals("new-access-token", result.accessToken());
+        assertEquals("Bearer", result.tokenType());
+        assertEquals("CUSTOMER", result.role());
+        assertNotEquals(rawToken, result.refreshToken());
+        assertNotNull(stored.getRevokedAt());
+        verify(refreshTokens).save(argThat(token -> token.getUserId().equals(userId)
+            && token.getFamilyId().equals(familyId) && !token.getTokenHash().equals(hash)));
+    }
+
+    @Test
+    void refreshReuseRevokesTheEntireFamilyAndRequiresSignInAgain() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID familyId = UUID.randomUUID();
+        String rawToken = "reused-refresh-token";
+        String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+            .digest(rawToken.getBytes(StandardCharsets.UTF_8)));
+        RefreshToken stored = new RefreshToken(userId, familyId, hash, Instant.now().plusSeconds(600));
+        stored.revoke(Instant.now().minusSeconds(5));
+        when(refreshTokens.findByTokenHashForUpdate(hash)).thenReturn(Optional.of(stored));
+
+        assertThrows(org.springframework.security.authentication.BadCredentialsException.class,
+            () -> service.refresh(rawToken));
+
+        verify(refreshTokens).revokeFamily(eq(familyId), any(Instant.class));
+        verifyNoInteractions(users);
+    }
+
+    @Test
+    void refreshRejectsExpiredTokenWithoutLookingUpUser() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID familyId = UUID.randomUUID();
+        String rawToken = "expired-refresh-token";
+        String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+            .digest(rawToken.getBytes(StandardCharsets.UTF_8)));
+        when(refreshTokens.findByTokenHashForUpdate(hash)).thenReturn(Optional.of(
+            new RefreshToken(userId, familyId, hash, Instant.now().minusSeconds(5))));
+
+        assertThrows(org.springframework.security.authentication.BadCredentialsException.class,
+            () -> service.refresh(rawToken));
+        verifyNoInteractions(users);
+        verify(refreshTokens, never()).revokeFamily(any(), any());
     }
 
 }
