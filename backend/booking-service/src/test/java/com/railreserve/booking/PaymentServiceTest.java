@@ -64,6 +64,32 @@ class PaymentServiceTest {
     }
 
     @Test
+    void deduplicatesExactWebhookRetriesWhenProviderEventIdHeaderIsMissing() throws Exception {
+        String body = "{\\"event\\":\\"payment_link.paid\\"}";
+        String fingerprint = "body-sha256-" + java.util.HexFormat.of().formatHex(
+            java.security.MessageDigest.getInstance("SHA-256").digest(body.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        org.mockito.Mockito.doReturn(1, 0).when(jdbc).update(
+            org.mockito.ArgumentMatchers.eq("INSERT IGNORE INTO payment_webhook_events(event_id,event_type) VALUES(?,?)"),
+            org.mockito.ArgumentMatchers.eq(fingerprint), org.mockito.ArgumentMatchers.eq("payment_link.paid"));
+
+        service.handleWebhook(body, signature(body));
+        service.handleWebhook(body, signature(body));
+
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.times(2)).update(
+            org.mockito.ArgumentMatchers.eq("INSERT IGNORE INTO payment_webhook_events(event_id,event_type) VALUES(?,?)"),
+            org.mockito.ArgumentMatchers.eq(fingerprint), org.mockito.ArgumentMatchers.eq("payment_link.paid"));
+        org.mockito.Mockito.verify(jdbc, org.mockito.Mockito.never()).queryForList(
+            org.mockito.ArgumentMatchers.contains("FROM payments p JOIN bookings b"), (Object[]) org.mockito.ArgumentMatchers.any(Object[].class));
+    }
+
+    @Test
+    void rejectsProviderWebhookEventIdLongerThanDatabaseColumn() throws Exception {
+        String body = "{\\"event\\":\\"payment_link.paid\\"}";
+        assertThrows(IllegalArgumentException.class, () -> service.handleWebhook(body, signature(body), "e".repeat(129)));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
     void refusesCheckoutWhenPaymentIsDisabled() {
         PaymentService disabled = new PaymentService(jdbc, new ObjectMapper(), "", "", "",
             "http://localhost:5173/payment-result", "INR", false);

@@ -21,8 +21,9 @@
 
 - [x] Fix mobile authenticated requests to honor an explicitly supplied fresh access token. This prevents the post-login seat-availability request from being overwritten by a stale empty token.
 - [x] Keep the same booking idempotency key when retrying the same web/mobile seat-hold request, and reset the key when the user changes the selection or starts a new search. This reduces duplicate holds after ambiguous network failures.
+- [x] Deduplicate exact payment-webhook body retries even when the provider event-ID header is absent, using a SHA-256 body fingerprint; provider event IDs remain preferred when supplied.
 - [x] Add refund regression tests for returning an existing refund intent and rejecting a payment that is not eligible for refund.
-- [ ] CI/CodeQL verification for these latest commits must finish successfully before these changes are considered verified.
+- [ ] CI/CodeQL verification for the latest webhook-fingerprint and regression-test change must finish successfully before this change is considered verified.
 
 ## Still required before production
 

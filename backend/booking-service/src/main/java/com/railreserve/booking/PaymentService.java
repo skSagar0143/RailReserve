@@ -273,13 +273,18 @@ public class PaymentService {
         try { event = mapper.readValue(rawBody, Map.class); }
         catch (Exception e) { throw new IllegalArgumentException("Invalid payment webhook payload."); }
         String eventType = String.valueOf(event.get("event"));
-        // Razorpay may redeliver the same event. Persist the provider event ID before
-        // applying side effects; the unique key makes duplicate deliveries no-ops.
-        if (providerEventId != null && !providerEventId.isBlank()) {
-            int inserted = jdbc.update("INSERT IGNORE INTO payment_webhook_events(event_id,event_type) VALUES(?,?)",
-                providerEventId, eventType);
-            if (inserted == 0) return;
+        // Razorpay may redeliver the same event. Prefer its event ID; if the header is
+        // absent, use a deterministic body fingerprint so exact retries are still deduplicated.
+        // This fallback is deliberately not presented as provider-level event identity.
+        String deduplicationId = providerEventId == null || providerEventId.isBlank()
+            ? "body-sha256-" + sha256(rawBody)
+            : providerEventId.trim();
+        if (deduplicationId.length() > 128) {
+            throw new IllegalArgumentException("Payment provider event ID exceeds the supported length.");
         }
+        int inserted = jdbc.update("INSERT IGNORE INTO payment_webhook_events(event_id,event_type) VALUES(?,?)",
+            deduplicationId, eventType);
+        if (inserted == 0) return;
         if (!"payment_link.paid".equals(eventType)) return;
         Map<String,Object> payload=(Map<String,Object>)event.get("payload");
         if(payload==null)return;
@@ -325,6 +330,14 @@ public class PaymentService {
             jdbc.update("INSERT INTO outbox_events(event_id,aggregate_type,aggregate_id,event_type,payload) VALUES(?,?,?,?,?)",
                 uuidBytes(UUID.fromString(String.valueOf(payload.get("eventId")))),"Booking",bookingId.toString(),"BookingConfirmed",mapper.writeValueAsString(payload));
         } catch(Exception e) { throw new IllegalStateException("Could not persist booking confirmation event.",e); }
+    }
+
+    private static String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to fingerprint payment webhook payload.", e);
+        }
     }
 
     private static String hmac(String body,String secret) {
