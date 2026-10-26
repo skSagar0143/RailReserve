@@ -35,13 +35,18 @@ class PaymentServiceTest {
     }
 
     @Test
-    void acceptsSignedUnrelatedEventsWithoutDatabaseMutation() throws Exception {
-        String body = "{\"event\":\"payment_link.cancelled\"}";
+    void recordsSignedUnrelatedEventsButDoesNotApplyPaymentSideEffects() throws Exception {
+        String body = "{\\"event\\":\\"payment_link.cancelled\\"}";
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec("webhook-secret".getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
         String signature = HexFormat.of().formatHex(mac.doFinal(body.getBytes(StandardCharsets.UTF_8)));
         service.handleWebhook(body, signature);
-        verifyNoInteractions(jdbc);
+        org.mockito.Mockito.verify(jdbc).update(
+            org.mockito.ArgumentMatchers.eq("INSERT IGNORE INTO payment_webhook_events(event_id,event_type) VALUES(?,?)"),
+            org.mockito.ArgumentMatchers.eq("body-sha256-" + java.util.HexFormat.of().formatHex(
+                java.security.MessageDigest.getInstance("SHA-256").digest(body.getBytes(StandardCharsets.UTF_8)))),
+            org.mockito.ArgumentMatchers.eq("payment_link.cancelled"));
+        org.mockito.Mockito.verifyNoMoreInteractions(jdbc);
     }
 
     @Test
