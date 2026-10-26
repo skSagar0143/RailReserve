@@ -25,6 +25,10 @@ class PaymentServiceTest {
     void setUp() {
         service = new PaymentService(jdbc, new ObjectMapper(), "rzp_test_key", "key-secret",
             "webhook-secret", "http://localhost:5173/payment-result", "INR", true);
+        // Default to a newly recorded webhook; individual duplicate-delivery tests override this to 0.
+        org.mockito.Mockito.lenient().doReturn(1).when(jdbc).update(
+            org.mockito.ArgumentMatchers.eq("INSERT IGNORE INTO payment_webhook_events(event_id,event_type) VALUES(?,?)"),
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
     }
 
     @Test
@@ -310,10 +314,13 @@ class PaymentServiceTest {
     }
 
     @Test
-    void ignoresSignedPaymentEventsWithoutPaymentLinkPayload() throws Exception {
+    void recordsSignedPaymentEventsWithoutLinkPayloadButDoesNotApplySideEffects() throws Exception {
         String body = "{\"event\":\"payment_link.paid\",\"payload\":{}}";
         service.handleWebhook(body, signature(body));
-        verifyNoInteractions(jdbc);
+        org.mockito.Mockito.verify(jdbc).update(
+            org.mockito.ArgumentMatchers.eq("INSERT IGNORE INTO payment_webhook_events(event_id,event_type) VALUES(?,?)"),
+            org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("payment_link.paid"));
+        org.mockito.Mockito.verifyNoMoreInteractions(jdbc);
     }
 
     @Test
