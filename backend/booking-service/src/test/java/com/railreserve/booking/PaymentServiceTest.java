@@ -194,7 +194,7 @@ class PaymentServiceTest {
 
     @Test
     void ignoresSignedPaymentEventsWithoutPaymentLinkPayload() throws Exception {
-        String body = "{\\\"event\\\":\\\"payment_link.paid\\\",\\\"payload\\\":{}}";
+        String body = "{\"event\":\"payment_link.paid\",\"payload\":{}}";
         service.handleWebhook(body, signature(body));
         verifyNoInteractions(jdbc);
     }
