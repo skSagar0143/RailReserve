@@ -10,6 +10,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class TrainApiExceptionHandler {
+    @ExceptionHandler(TrainAdminConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public Map<String, String> adminConflict(TrainAdminConflictException ex) {
+        return Map.of("error", "conflict", "message", ex.getMessage());
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, String> badRequest(IllegalArgumentException ex) {

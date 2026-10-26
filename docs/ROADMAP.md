@@ -40,7 +40,8 @@
 - [ ] Complete role/ownership tests, integration tests, Testcontainers, API contract tests and concurrent oversell/idempotency tests.
 - [x] ADMIN-only seat inventory and server-configured fare setup.
 - [x] Add a guarded admin fare-update endpoint: only AVAILABLE seats can be repriced, the row is locked during the update, fare precision is validated, and the mutation is recorded in the admin audit log. This does not permit repricing held/booked seats.
-- [ ] Complete train/seat update and cancellation workflows, audit trails for all administrative mutations (payment refund actions are now audited), and measure/tune cache hit rate and invalidation under load.
+- [x] Add a guarded train service-date cancellation workflow: only future/current SCHEDULED service dates can be cancelled; the action is audited and the train-search cache version is invalidated after commit.
+- [ ] Complete remaining train/seat update workflows, audit trails for all administrative mutations, and measure/tune cache hit rate and invalidation under load.
 - [ ] Add a real notification provider adapter, recipient resolution, delivery retries, provider idempotency and operator visibility for failed jobs.
 - [x] Connect web and mobile clients to live train search, registration/login, access-token refresh, seat holds and booking history; keep tokens in memory rather than localStorage.
 - [ ] Persist theme/font preferences and improve offline/retry UX. Web/mobile payment checkout flow is implemented; end-to-end provider validation remains outstanding.
