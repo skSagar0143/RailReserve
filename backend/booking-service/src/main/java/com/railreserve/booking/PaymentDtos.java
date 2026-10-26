@@ -15,4 +15,7 @@ public final class PaymentDtos {
                                      String customerId, String provider, String providerLinkId,
                                      String providerPaymentId, String status, BigDecimal amount,
                                      String currency, Instant createdAt, Instant updatedAt) {}
+    public record RefundRequest(String reason) {}
+    public record RefundResponse(String refundId, String paymentId, String status,
+                                 String providerRefundId, String message, Instant createdAt) {}
 }
