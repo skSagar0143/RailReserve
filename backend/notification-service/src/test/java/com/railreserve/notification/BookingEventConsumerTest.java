@@ -56,9 +56,9 @@ class BookingEventConsumerTest {
 
     @Test
     void rejectsBlankEventKeyOrPayloadBeforeDatabaseWork() {
-        ConsumerRecord<String, String> blankKey = validRecord();
+        ConsumerRecord<String, String> blankKey = new ConsumerRecord<>("railreserve.booking.events", 0, 4L, " ", "{}");
         ConsumerRecord<String, String> blankPayload = new ConsumerRecord<>("railreserve.booking.events", 0, 2L, "event-124", "  ");
-        assertThrows(IllegalArgumentException.class, () -> consumer.consume(blankKey.withKey(" ")));
+        assertThrows(IllegalArgumentException.class, () -> consumer.consume(blankKey));
         assertThrows(IllegalArgumentException.class, () -> consumer.consume(blankPayload));
         verifyNoInteractions(jdbc);
     }
