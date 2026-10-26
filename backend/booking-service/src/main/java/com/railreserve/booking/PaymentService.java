@@ -125,7 +125,7 @@ public class PaymentService {
         return jdbc.query(
             "SELECT p.id,p.booking_id,b.booking_reference,b.customer_id,p.provider,p.provider_link_id,p.provider_payment_id,p.status,p.amount,p.currency,p.created_at,p.updated_at " +
             "FROM payments p JOIN bookings b ON b.id=p.booking_id " +
-            "WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY') ORDER BY p.updated_at ASC LIMIT ?",
+            "WHERE p.status IN ('REVIEW_REQUIRED','PAID_AFTER_EXPIRY','REFUND_REQUESTED','REFUND_REVIEW_REQUIRED','REFUND_PENDING') ORDER BY p.updated_at ASC LIMIT ?",
             (rs, rowNum) -> new PaymentDtos.ReconciliationItem(
                 uuidFromBytes(rs.getBytes("id")).toString(),
                 uuidFromBytes(rs.getBytes("booking_id")).toString(),
@@ -140,6 +140,109 @@ public class PaymentService {
                 rs.getTimestamp("created_at").toInstant(),
                 rs.getTimestamp("updated_at").toInstant()),
             limit);
+    }
+
+
+    /**
+     * Durable refund intent. A request is persisted before contacting Razorpay; if the
+     * network outcome is ambiguous, the same payment is never automatically submitted twice.
+     */
+    public record PreparedRefund(UUID refundId, UUID paymentId, String providerPaymentId,
+            String reason, String status, String providerRefundId, Instant createdAt, boolean newlyCreated) {}
+
+    @Transactional
+    public PreparedRefund prepareRefund(UUID paymentId, String reason, String requestedBy) {
+        if (paymentId == null) throw new IllegalArgumentException("Payment identity is required.");
+        if (reason == null || reason.isBlank() || reason.length() > 500) {
+            throw new IllegalArgumentException("Refund reason must contain 1 to 500 characters.");
+        }
+        String actor = requestedBy == null || requestedBy.isBlank() ? "unknown" : requestedBy;
+        if (actor.length() > 128) actor = actor.substring(0, 128);
+        List<Map<String,Object>> rows = jdbc.queryForList(
+            "SELECT id,provider,provider_payment_id,status FROM payments WHERE id=? FOR UPDATE", uuidBytes(paymentId));
+        if (rows.isEmpty()) throw new BookingConflictException("Payment was not found.");
+        Map<String,Object> payment = rows.getFirst();
+        if (!"RAZORPAY".equals(String.valueOf(payment.get("provider")))) {
+            throw new BookingConflictException("Refunds are not supported for this payment provider.");
+        }
+        String providerPaymentId = (String) payment.get("provider_payment_id");
+        if (providerPaymentId == null || providerPaymentId.isBlank()) {
+            throw new BookingConflictException("The provider payment ID is missing; verify the payment with the provider before refunding.");
+        }
+        List<Map<String,Object>> existing = jdbc.queryForList(
+            "SELECT id,status,provider_refund_id,reason,created_at FROM payment_refunds WHERE payment_id=?",
+            uuidBytes(paymentId));
+        if (!existing.isEmpty()) {
+            Map<String,Object> refund = existing.getFirst();
+            return new PreparedRefund(uuidFromBytes((byte[]) refund.get("id")), paymentId, providerPaymentId,
+                String.valueOf(refund.get("reason")), String.valueOf(refund.get("status")),
+                (String) refund.get("provider_refund_id"), ((java.sql.Timestamp) refund.get("created_at")).toInstant(), false);
+        }
+        String paymentStatus = String.valueOf(payment.get("status"));
+        if (!List.of("PAID", "PAID_AFTER_EXPIRY", "REVIEW_REQUIRED").contains(paymentStatus)) {
+            throw new BookingConflictException("Only paid or reconciliation-required payments can be refunded.");
+        }
+        UUID refundId = UUID.randomUUID();
+        jdbc.update("INSERT INTO payment_refunds(id,payment_id,status,reason,requested_by) VALUES(?,?,?,?,?)",
+            uuidBytes(refundId), uuidBytes(paymentId), "REQUESTED", reason.trim(), actor);
+        jdbc.update("UPDATE payments SET status='REFUND_REQUESTED' WHERE id=?", uuidBytes(paymentId));
+        return new PreparedRefund(refundId, paymentId, providerPaymentId, reason.trim(), "REQUESTED", null, Instant.now(), true);
+    }
+
+    /** Submit a full refund. Amount is intentionally omitted so the provider refunds the captured amount,
+     * including when the originally received amount differed from the booking amount. */
+    public Map<String,Object> submitRefund(PreparedRefund refund) {
+        Map<String,Object> request = Map.of("notes", Map.of(
+            "railreserveRefundId", refund.refundId().toString(),
+            "reason", refund.reason()));
+        Map response = restClient.post().uri("/payments/{paymentId}/refund", refund.providerPaymentId())
+            .contentType(MediaType.APPLICATION_JSON)
+            .headers(h -> h.setBasicAuth(keyId, keySecret))
+            .body(request).retrieve().body(Map.class);
+        if (response == null || response.get("id") == null || response.get("status") == null) {
+            throw new IllegalStateException("Payment provider returned an incomplete refund response; provider status must be reconciled manually.");
+        }
+        return response;
+    }
+
+    @Transactional
+    public PaymentDtos.RefundResponse recordRefundResult(PreparedRefund refund, Map<String,Object> providerResponse) {
+        String providerRefundId = String.valueOf(providerResponse.get("id"));
+        String providerStatus = String.valueOf(providerResponse.get("status")).toLowerCase(java.util.Locale.ROOT);
+        String status = "processed".equals(providerStatus) ? "REFUNDED"
+            : "pending".equals(providerStatus) ? "REFUND_PENDING" : "REFUND_REVIEW_REQUIRED";
+        jdbc.update("UPDATE payment_refunds SET provider_refund_id=?,status=? WHERE id=?",
+            providerRefundId, status, uuidBytes(refund.refundId()));
+        jdbc.update("UPDATE payments SET status=? WHERE id=?", status, uuidBytes(refund.paymentId()));
+        return new PaymentDtos.RefundResponse(refund.refundId().toString(), refund.paymentId().toString(), status,
+            providerRefundId, refundMessage(status), refund.createdAt());
+    }
+
+    @Transactional
+    public PaymentDtos.RefundResponse markRefundUncertain(PreparedRefund refund) {
+        jdbc.update("UPDATE payment_refunds SET status='REFUND_REVIEW_REQUIRED' WHERE id=? AND status='REQUESTED'",
+            uuidBytes(refund.refundId()));
+        jdbc.update("UPDATE payments SET status='REFUND_REVIEW_REQUIRED' WHERE id=? AND status='REFUND_REQUESTED'",
+            uuidBytes(refund.paymentId()));
+        return new PaymentDtos.RefundResponse(refund.refundId().toString(), refund.paymentId().toString(),
+            "REFUND_REVIEW_REQUIRED", null,
+            "The provider outcome is uncertain. Check the Razorpay dashboard before taking any further action; this request will not be resubmitted automatically.",
+            refund.createdAt());
+    }
+
+    public PaymentDtos.RefundResponse refundResponse(PreparedRefund refund) {
+        return new PaymentDtos.RefundResponse(refund.refundId().toString(), refund.paymentId().toString(),
+            refund.status(), refund.providerRefundId(), refundMessage(refund.status()), refund.createdAt());
+    }
+
+    private static String refundMessage(String status) {
+        return switch (status) {
+            case "REFUNDED" -> "Razorpay reports that the refund was processed.";
+            case "REFUND_PENDING" -> "Razorpay accepted the refund; final settlement is pending.";
+            case "REFUND_REVIEW_REQUIRED" -> "Check the Razorpay dashboard and reconcile the refund manually.";
+            case "REQUESTED" -> "A refund request is already recorded and was not submitted again to avoid a duplicate refund.";
+            default -> "Refund request status: " + status;
+        };
     }
 
     @Transactional
