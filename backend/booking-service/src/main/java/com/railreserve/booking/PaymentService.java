@@ -144,6 +144,11 @@ public class PaymentService {
 
     @Transactional
     public void handleWebhook(String rawBody, String signature) {
+        handleWebhook(rawBody, signature, null);
+    }
+
+    @Transactional
+    public void handleWebhook(String rawBody, String signature, String providerEventId) {
         if (webhookSecret.isBlank()) throw new IllegalStateException("Payment webhook secret is not configured.");
         if (rawBody == null || signature == null || !constantTimeEquals(hmac(rawBody, webhookSecret), signature)) {
             throw new org.springframework.security.access.AccessDeniedException("Invalid payment webhook signature.");
@@ -152,6 +157,13 @@ public class PaymentService {
         try { event = mapper.readValue(rawBody, Map.class); }
         catch (Exception e) { throw new IllegalArgumentException("Invalid payment webhook payload."); }
         String eventType = String.valueOf(event.get("event"));
+        // Razorpay may redeliver the same event. Persist the provider event ID before
+        // applying side effects; the unique key makes duplicate deliveries no-ops.
+        if (providerEventId != null && !providerEventId.isBlank()) {
+            int inserted = jdbc.update("INSERT IGNORE INTO payment_webhook_events(event_id,event_type) VALUES(?,?)",
+                providerEventId, eventType);
+            if (inserted == 0) return;
+        }
         if (!"payment_link.paid".equals(eventType)) return;
         Map<String,Object> payload=(Map<String,Object>)event.get("payload");
         if(payload==null)return;
