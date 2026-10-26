@@ -98,6 +98,7 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public AuthDtos.UserResponse currentUser(UUID id) {
+        if (id == null) throw new BadCredentialsException("Account identity is required.");
         AuthUser user = users.findById(id).filter(AuthUser::isActive)
             .orElseThrow(() -> new BadCredentialsException("Account is unavailable."));
         return toUserResponse(user);
