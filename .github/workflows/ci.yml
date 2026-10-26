@@ -116,7 +116,9 @@ jobs:
           mkdir -p infra/secrets
           openssl genpkey -algorithm RSA -out infra/secrets/railreserve-private.pem -pkeyopt rsa_keygen_bits:2048
           openssl pkey -in infra/secrets/railreserve-private.pem -pubout -out infra/secrets/railreserve-public.pem
-          chmod 600 infra/secrets/railreserve-private.pem
+          # This key is disposable and exists only inside the ephemeral CI runner.
+          # The non-root container user must be able to read the mounted test key.
+          chmod 644 infra/secrets/railreserve-private.pem
           cat > .env <<'EOF'
           MYSQL_ROOT_PASSWORD=ci_root_password
           MYSQL_USER=railreserve_app
